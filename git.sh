@@ -1,4 +1,4 @@
-COMMIT='$1'
+COMMIT=$1
 
 echo $COMMIT
 

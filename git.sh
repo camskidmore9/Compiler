@@ -1,4 +1,4 @@
-COMMIT=$(</dev/stdin)
+COMMIT='$1'
 
 echo $COMMIT
 

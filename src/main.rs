@@ -161,6 +161,9 @@ impl token{
         //self.tokenMark = NULL;
         println!("Created the token struct");
     }
+    fn setTT(&mut self, tokenTypeEnum: newType){
+        self.tt = newType;
+    }
 }
 
 fn main() -> Result<()> {

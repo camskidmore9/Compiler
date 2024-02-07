@@ -34,32 +34,8 @@ use {
 use std::io::prelude::*;
 
 
-#[derive(Clone, Debug, Display)]
+#[derive(Debug, Display)]
 #[display("format")]
-
-
-
-//inFile Class
-struct inFile{
-    attatchFile: bool,
-    fileName: String,
-    lineCnt: usize,
-    file : BufReader <File>,
-}
-impl inFile {
-    fn new(fileName: &str) -> inFile {
-        let mut newFile = BufReader::new(File::open(fileName).unwrap());
-        
-        inFile {
-            fileName: fileName.to_string(),
-            attatchFile: false,
-            lineCnt: 0,
-            file: newFile,
-        }
-
-    }
-}
-
 
 //Stats class, breaks down a file and gets the stats from it
 struct Stats {
@@ -99,6 +75,94 @@ impl Stats {
     }
 }
 
+enum tokenTypeEnum{
+    PLUS, 
+    MINUS, 
+    IF_RW, 
+    LOOP_RW, 
+    END_RW, 
+    L_PAREN, 
+    R_PAREN,
+    L_BRACKET, 
+    R_BRACKET,
+    NUMBER, 
+    IDENTIFIER, 
+    EOF
+}
+
+//This is the master struct for the lexer
+struct Lexer {
+    tokenType: tokenTypeEnum,
+    inputFile: inFile,
+    
+}
+impl Lexer{
+    fn new(&mut self){
+        println!("Created the lexer struct");
+    }
+}
+
+//inFile Class
+struct inFile{
+    attatchFile: bool,
+    fileName: String,
+    lineCnt: usize,
+    totalLines: usize,
+    file : BufReader <File>,
+}
+impl inFile {
+    //Init function, opens the file
+    fn new(fileName: &str) -> inFile {
+        let mut newFile = BufReader::new(File::open(fileName).unwrap());
+        
+        inFile {
+            fileName: fileName.to_string(),
+            attatchFile: false,
+            lineCnt: 0,
+            totalLines: 0,
+            file: newFile,
+        }
+
+    }
+
+    //Sets the gathered stats (probably unneccesary idk)
+    fn setStats(&mut self, stats: Stats){
+        self.totalLines = stats.lines;
+    }
+
+    //Prints the stats of the file (for debugging)
+    fn printInfo(&self){
+        println!("File Name: {}", self.fileName);
+        println!("Lines: {}", self.lineCnt);
+    }
+
+    //A function to increment the current line
+    fn incLineCnt(&mut self){
+        self.lineCnt += 1;
+    }
+
+}
+
+//A class for the tokenMark object (IDk what this means or what it is/does)
+// struct tokenMark{
+//     tmUnionType: mark1
+// }
+
+
+//Token class
+struct token{
+    tt: tokenType,
+    tokStr: String,
+    //To be completed later when I understand
+    //tm: tokenMark,
+}
+impl token{
+    fn new(&mut self){
+        //self.tokenMark = NULL;
+        println!("Created the token struct");
+    }
+}
+
 fn main() -> Result<()> {
     
     let path = env::args().nth(1).expect("please supply an argument");
@@ -107,8 +171,12 @@ fn main() -> Result<()> {
     println!("File: {} characters: {}", path, stats.characters);
 
     println!("Creating inFile structure");
-    let f = inFile::new(path.as_str(), stats.lines);
-    println!("inFile: {}", f.fileName);
+    let mut f = inFile::new(path.as_str());
+    f.setStats(stats);
+    //println!("inFile: {}", f.fileName);
+    f.printInfo();
+    f.lineCnt = 5;
+    f.printInfo();
 
 
     Ok(())

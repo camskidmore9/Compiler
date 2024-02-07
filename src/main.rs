@@ -3,12 +3,17 @@
 #![allow(non_camel_case_types)]
 #![allow(unused_imports)]
 #![allow(dead_code)]
+#![allow(unused_parens)]
+#![allow(unused_mut)]
+#![allow(unused_variables)]
 
 extern crate anyhow;
 extern crate parse_display;
 extern crate utf8_chars;
+extern crate unicode_segmentation;
 
 use {
+    unicode_segmentation::UnicodeSegmentation,
     anyhow::Result,
     parse_display::Display,
     std::{
@@ -100,27 +105,50 @@ impl Lexer{
     fn new(&mut self){
         println!("Created the lexer struct");
     }
+    //The main function if the lexer
+    //Returns one token
+    fn scan(&mut self){
+        //Gets the next character in the file string
+        let mut nextChar: char = self.inputFile.getChar();
+        //Checks if it is a filler character or not
+        while((nextChar == '\n') || (nextChar == '\t') || (nextChar == '\r')){
+            if nextChar == '\n'{
+                self.inputFile.incLineCnt();
+            }
+            nextChar = self.inputFile.getChar();
+        }
+        //A segment to parse/ignore comments goes here:
+        //
+        //
+        //
+
+        //A switch case to handle the different things that it could be to look ahead
+    }
 }
 
 //inFile Class
 struct inFile{
     attatchFile: bool,
     fileName: String,
+    fileContents: String,
     lineCnt: usize,
     totalLines: usize,
     file : BufReader <File>,
+    currentCharIndex: usize,
 }
 impl inFile {
     //Init function, opens the file
     fn new(fileName: &str) -> inFile {
         let mut newFile = BufReader::new(File::open(fileName).unwrap());
-        
+        let fileContentsString = std::fs::read_to_string(fileName).expect("Unable to read file");
         inFile {
             fileName: fileName.to_string(),
             attatchFile: false,
             lineCnt: 0,
+            currentCharIndex: 0,
             totalLines: 0,
             file: newFile,
+            fileContents: fileContentsString,
         }
 
     }
@@ -134,6 +162,12 @@ impl inFile {
     fn printInfo(&self){
         println!("File Name: {}", self.fileName);
         println!("Lines: {}", self.lineCnt);
+    }
+
+    fn getChar(&mut self) -> char{
+        let mut currentChar: char = self.fileContents.chars().nth(self.currentCharIndex). unwrap();
+        self.currentCharIndex += 1;
+        return currentChar;
     }
 
     //A function to increment the current line
@@ -151,21 +185,88 @@ impl inFile {
 
 //Token class
 struct token{
-    tt: tokenType,
-    tokStr: String,
+    tt: tokenTypeEnum,
     //To be completed later when I understand
     //tm: tokenMark,
 }
 impl token{
-    fn new(&mut self){
+    //Init for the token
+    fn new(&mut self) -> token{
         //self.tokenMark = NULL;
         println!("Created the token struct");
+
+        token {
+            tt: crate::tokenTypeEnum::IDENTIFIER,
+        }
     }
-    fn setTT(&mut self, tokenTypeEnum: newType){
+    //Used for setting the token type
+    fn setTokenType(&mut self, newType: tokenTypeEnum){
         self.tt = newType;
     }
 }
 
+//Token ID class, derives from token class
+struct tokenId {
+    parent: token,
+    tokStr: String,
+}
+
+//Token Function class, derived from token class
+struct tokenFunction{
+    parent: token,
+    tokStr: String,
+    argList: token<>,
+    returnType: token,
+}
+
+//Structure for reporting errors and warnings
+struct reporting{
+    errorStatus: bool,
+}
+impl reporting{
+    fn new(&mut self) -> reporting{
+        self.errorStatus = false;
+
+        reporting{
+            errorStatus: false,
+        }
+    }
+    fn reportError(message: String){
+        println!("reporting error: {}", message);
+    }
+    fn reportWarning(message: String){
+        println!("reporting warning: {}", message);
+    }
+}
+
+//The structure for the SymbolTable. This holds all of the IDENTIFIERS of the program as well as their scope and information
+struct symbolTable{
+    // For now you can simply use a single hash table of tokens. As we move forward to parsing, the symbol table
+    // structure will have to be augmented to permit the recording of entering/exiting program scopes as well as
+    // the scope that an IDENTIFER is declared. In general when you exit a scope the symbol table will remove
+    // any symbols defined in that scope from the symbol table. Again, we will solve this problem later; the
+    // example methods for scope entry/exit are here to deomonstrate what we will probably want in the future
+    //symTab: hashTable<token>,
+}
+impl symbolTable{
+    // The symbol table hashLook function should automatically create a new entry and mark it as an
+    // IDENTIFER token for any IDENTIFIER string that is not already in the symbol table. In some languages
+    // case does not matter to the uniqueness of the symbol. In this case, an easy place to solve this is to simply
+    // upper case or lower case all strings in the symbol table API functions (and storage)
+    fn hashLook(mut lookupString: String){
+        println!("Looking up the idenntifier of the string");
+    }
+    fn enterScope(){
+        println!("To be used in the future");
+    }
+    fn exitScope(){
+        println!("To be used in the future");
+    }
+}
+
+
+
+//The main section of the code
 fn main() -> Result<()> {
     
     let path = env::args().nth(1).expect("please supply an argument");

@@ -123,6 +123,7 @@ impl Lexer{
         //
 
         //A switch case to handle the different things that it could be to look ahead
+        //test
     }
 }
 

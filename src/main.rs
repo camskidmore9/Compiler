@@ -12,6 +12,7 @@ extern crate parse_display;
 extern crate utf8_chars;
 extern crate unicode_segmentation;
 
+//package imports
 use {
     unicode_segmentation::UnicodeSegmentation,
     anyhow::Result,
@@ -42,44 +43,8 @@ use std::io::prelude::*;
 #[derive(Debug, Display)]
 #[display("format")]
 
-//Stats class, breaks down a file and gets the stats from it
-struct Stats {
-    characters: usize,
-    words: usize,
-    lines: usize,
-}
-impl Stats {
-    fn new<R: BufRead>(mut reader: R) -> Result<Self> {
-        let mut stats = Stats {
-            characters: 0,
-            words: 1,
-            lines: 1,
-        };
-        let mut in_word = false;
 
-        for c in reader.chars_raw() {
-            let c = c?;
-
-            if c != '\0' {
-                stats.characters += 1;
-            }
-
-            if !c.is_whitespace() {
-                in_word = true;
-            } else if in_word {
-                stats.words += 1;
-                in_word = false;
-            }
-
-            if c == '\n' {
-                stats.lines += 1;
-            }
-        }
-
-        Ok(stats)
-    }
-}
-
+//The enumeration for saving token types, this is a list of every type of token there is
 enum tokenTypeEnum{
     PLUS, 
     MINUS, 
@@ -97,13 +62,21 @@ enum tokenTypeEnum{
 
 //This is the master struct for the lexer
 struct Lexer {
-    tokenType: tokenTypeEnum,
+    //tokenType: tokenTypeEnum,
     inputFile: inFile,
     
 }
 impl Lexer{
-    fn new(&mut self){
-        println!("Created the lexer struct");
+    fn new(fileName: &str) -> Lexer {
+        println!("Beginning creation of Lexer");
+        let newFile = inFile::new(fileName);
+        println!("Lexer created successfully");
+
+
+        Lexer { 
+            //tokenType: (), 
+            inputFile: newFile, 
+        }
     }
     //The main function if the lexer
     //Returns one token
@@ -142,6 +115,8 @@ impl inFile {
     fn new(fileName: &str) -> inFile {
         let mut newFile = BufReader::new(File::open(fileName).unwrap());
         let fileContentsString = std::fs::read_to_string(fileName).expect("Unable to read file");
+        println!("Creating the inFile structure");
+        
         inFile {
             fileName: fileName.to_string(),
             attatchFile: false,
@@ -150,14 +125,15 @@ impl inFile {
             totalLines: 0,
             file: newFile,
             fileContents: fileContentsString,
+
         }
 
     }
 
-    //Sets the gathered stats (probably unneccesary idk)
-    fn setStats(&mut self, stats: Stats){
-        self.totalLines = stats.lines;
-    }
+    // //Sets the gathered stats (probably unneccesary idk)
+    // fn setStats(&mut self, stats: Stats){
+    //     self.totalLines = stats.lines;
+    // }
 
     //Prints the stats of the file (for debugging)
     fn printInfo(&self){
@@ -270,18 +246,23 @@ impl symbolTable{
 //The main section of the code
 fn main() -> Result<()> {
     
-    let path = env::args().nth(1).expect("please supply an argument");
-    let file = BufReader::new(File::open(&path)?);
-    let stats = Stats::new(file)?;
-    println!("File: {} characters: {}", path, stats.characters);
+    let path = env::args().nth(1).expect("Please specify an input file");
+    let mut myLexer: Lexer = Lexer::new(&path);
 
-    println!("Creating inFile structure");
-    let mut f = inFile::new(path.as_str());
-    f.setStats(stats);
-    //println!("inFile: {}", f.fileName);
-    f.printInfo();
-    f.lineCnt = 5;
-    f.printInfo();
+
+    
+    
+    // let file = BufReader::new(File::open(&path)?);
+    // let stats = Stats::new(file)?;
+    // println!("File: {} characters: {}", path, stats.characters);
+
+    // //println!("Creating inFile structure");
+    // let mut f = inFile::new(path.as_str());
+    // f.setStats(stats);
+    // //println!("inFile: {}", f.fileName);
+    // f.printInfo();
+    // f.lineCnt = 5;
+    // f.printInfo();
 
 
     Ok(())

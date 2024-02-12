@@ -60,6 +60,14 @@ enum tokenTypeEnum{
     EOF
 }
 
+//The enumeration for character type
+enum charType{
+    LETTER,
+    NUMBER,
+    SYMBOL,
+    EOF,
+}
+
 //This is the master struct for the lexer
 struct Lexer {
     //tokenType: tokenTypeEnum,
@@ -80,24 +88,60 @@ impl Lexer{
     }
     //The main function if the lexer
     //Returns one token
-    fn scan(&mut self){
+    fn scan(&mut self) -> bool{
         //Gets the next character in the file string
-        let mut nextChar: char = self.inputFile.getChar();
+        let mut nextChar = self.inputFile.getChar();
+        
         //Checks if it is a filler character or not
-        while((nextChar == '\n') || (nextChar == '\t') || (nextChar == '\r')){
-            if nextChar == '\n'{
-                self.inputFile.incLineCnt();
+        let mut nextChar = self.inputFile.getChar();
+        while let Some(c) = nextChar {
+            if c == '\n' || c == '\t' || c == '\r' {
+                if c == '\n' {
+                    self.inputFile.incLineCnt();
+                }
+                nextChar = self.inputFile.getChar();
+            } else {
+                break; // Exit the loop if the character is not a filler character
             }
-            nextChar = self.inputFile.getChar();
         }
+
         //A segment to parse/ignore comments goes here:
         //
         //
         //
 
         //A switch case to handle the different things that it could be to look ahead
-        //test
+        //println!("{}", nextChar);
+        match nextChar {
+            Some(ch) if ch.is_ascii_alphabetic() => {
+                println!("The character is a letter.");
+                return true;
+            }
+            Some(ch) if ch.is_ascii_digit() => {
+                println!("The character is a number.");
+                return true;
+            }
+            Some(_) => {
+                println!("The character is a symbol.");
+                return true;
+            }
+            None => {
+                println!("This character is an None");
+                return false;
+            }
+        }
     }
+
+
+
+    //A function to scan through entire file
+    fn scanThrough(&mut self){
+        while self.scan(){
+
+        };
+        println!("EOF Reached")
+    }
+
 }
 
 //inFile Class
@@ -106,6 +150,7 @@ struct inFile{
     fileName: String,
     fileContents: String,
     lineCnt: usize,
+    numChars: usize,
     totalLines: usize,
     file : BufReader <File>,
     currentCharIndex: usize,
@@ -115,6 +160,7 @@ impl inFile {
     fn new(fileName: &str) -> inFile {
         let mut newFile = BufReader::new(File::open(fileName).unwrap());
         let fileContentsString = std::fs::read_to_string(fileName).expect("Unable to read file");
+        let numChars = fileContentsString.len();
         println!("Creating the inFile structure");
         
         inFile {
@@ -125,15 +171,11 @@ impl inFile {
             totalLines: 0,
             file: newFile,
             fileContents: fileContentsString,
+            numChars: numChars,
 
         }
 
     }
-
-    // //Sets the gathered stats (probably unneccesary idk)
-    // fn setStats(&mut self, stats: Stats){
-    //     self.totalLines = stats.lines;
-    // }
 
     //Prints the stats of the file (for debugging)
     fn printInfo(&self){
@@ -141,10 +183,14 @@ impl inFile {
         println!("Lines: {}", self.lineCnt);
     }
 
-    fn getChar(&mut self) -> char{
-        let mut currentChar: char = self.fileContents.chars().nth(self.currentCharIndex). unwrap();
-        self.currentCharIndex += 1;
-        return currentChar;
+    //Gets the next character in the file string
+    fn getChar(&mut self) -> Option<char> {
+        if let Some(current_char) = self.fileContents.chars().nth(self.currentCharIndex) {
+            self.currentCharIndex += 1;
+            Some(current_char)
+        } else {
+            None
+        }
     }
 
     //A function to increment the current line
@@ -248,8 +294,14 @@ fn main() -> Result<()> {
     
     let path = env::args().nth(1).expect("Please specify an input file");
     let mut myLexer: Lexer = Lexer::new(&path);
+    println!("Lexer filename: {} \nCharacter count: {}", myLexer.inputFile.fileName, myLexer.inputFile.numChars);
+
+    myLexer.scanThrough();
 
 
+    // for mut char in myLexer.inputFile.fileContents.clone().chars(){
+    //     myLexer.scan();
+    // }
     
     
     // let file = BufReader::new(File::open(&path)?);

@@ -209,6 +209,7 @@ impl Lexer{
                 return newToken;
             }
 
+            //If the character is a <
             Some('<') => {
                 //println!("This character is a <.");
                 let mut nextNextChar = self.inputFile.getChar();
@@ -225,6 +226,7 @@ impl Lexer{
                 }
             }
 
+            //If the character is a >
             Some('>') => {
                 //println!("This character is a <.");
                 let mut nextNextChar = self.inputFile.getChar();
@@ -241,6 +243,13 @@ impl Lexer{
                 }
             }
 
+            //If the character is a "
+            Some('"') => {
+                println!("Found a double quote");
+                let newToken = token::new(crate::tokenTypeEnum::UNACCOUNTED, tokenString);
+                return newToken;
+                
+            }
             Some(c) => {
                 // println!("This character is unaccounted for '{}'", c);
                 let newToken = token::new(crate::tokenTypeEnum::UNACCOUNTED, tokenString);

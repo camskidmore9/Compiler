@@ -31,6 +31,7 @@ use {
             BufRead
         },
         fmt,
+        collections::HashMap,
 
 
     },
@@ -45,7 +46,8 @@ use std::io::prelude::*;
 // #[display("format")]
 
 
-//The enumeration for saving token types, this is a list of every type of token there is
+//The enumeration for saving Token types, this is a list of every type of Token there is
+#[derive(Clone)]
 enum tokenTypeEnum{
     PLUS, 
     MINUS, 
@@ -110,6 +112,7 @@ enum charType{
 struct Lexer {
     //tokenType: tokenTypeEnum,
     inputFile: inFile,
+    symTab: symbolTable,
     
 }
 impl Lexer{
@@ -117,16 +120,17 @@ impl Lexer{
         println!("Beginning creation of Lexer");
         let newFile = inFile::new(fileName);
         println!("Lexer created successfully");
-
+        let mut symTable = symbolTable::new();
 
         Lexer { 
             //tokenType: (), 
-            inputFile: newFile, 
+            inputFile: newFile,
+            symTab: symTable,
         }
     }
     //The main function if the lexer
-    //Returns one token
-    fn scan(&mut self) -> token{
+    //Returns one Token
+    fn scan(&mut self) -> Token{
         //Gets the next character
         let mut currChar = self.inputFile.getChar();
 
@@ -181,7 +185,7 @@ impl Lexer{
                     }
                 }
                 self.inputFile.unGetChar();
-                let newToken: token = token::new(tokType, tokenString);
+                let newToken: Token = Token::new(tokType, tokenString);
                 return newToken;
             }
 
@@ -205,7 +209,7 @@ impl Lexer{
                     }
                 }
                 self.inputFile.unGetChar();
-                let newToken: token = token::new(tokType, tokenString);
+                let newToken: Token = Token::new(tokType, tokenString);
                 return newToken;
             }
 
@@ -216,12 +220,12 @@ impl Lexer{
                 let Some(nextC) = nextNextChar else { todo!() };
                 if nextC == '=' {
                     // println!("This is a <=");
-                    let newToken = token::new(crate::tokenTypeEnum::LESS_EQUALS, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::LESS_EQUALS, tokenString);
                     return newToken;
                 } else {
                     // println!("This is just a <");
                     self.inputFile.unGetChar();
-                    let newToken = token::new(crate::tokenTypeEnum::LESS, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::LESS, tokenString);
                     return newToken;
                 }
             }
@@ -233,12 +237,12 @@ impl Lexer{
                 let Some(nextC) = nextNextChar else { todo!() };
                 if nextC == '=' {
                     // println!("This is a >=");
-                    let newToken = token::new(crate::tokenTypeEnum::GREATER, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::GREATER, tokenString);
                     return newToken;
                 } else {
                     // println!("This is just a >");
                     self.inputFile.unGetChar();
-                    let newToken = token::new(crate::tokenTypeEnum::GREATER_EQUALS, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::GREATER_EQUALS, tokenString);
                     return newToken;
                 }
             }
@@ -246,18 +250,18 @@ impl Lexer{
             //If the character is a "
             Some('"') => {
                 println!("Found a double quote");
-                let newToken = token::new(crate::tokenTypeEnum::UNACCOUNTED, tokenString);
+                let newToken = Token::new(crate::tokenTypeEnum::UNACCOUNTED, tokenString);
                 return newToken;
                 
             }
             Some(c) => {
                 // println!("This character is unaccounted for '{}'", c);
-                let newToken = token::new(crate::tokenTypeEnum::UNACCOUNTED, tokenString);
+                let newToken = Token::new(crate::tokenTypeEnum::UNACCOUNTED, tokenString);
                 return newToken;
             }
             None => {
                 // println!("This character is an None");
-                let newToken = token::new(crate::tokenTypeEnum::EOF, tokenString);
+                let newToken = Token::new(crate::tokenTypeEnum::EOF, tokenString);
                 return newToken;
             }
         }
@@ -268,7 +272,7 @@ impl Lexer{
     //A function to scan through entire file
     fn scanThrough(&mut self){
         while self.inputFile.currentCharIndex < self.inputFile.numChars{
-            let newToken: token = self.scan();
+            let newToken: Token = self.scan();
         };
         println!("EOF Reached")
     }
@@ -342,42 +346,38 @@ impl inFile {
 
 
 //Token class
-struct token{
+#[derive(Clone)]
+struct Token{
     tt: tokenTypeEnum,
     tokenString: String,
     //To be completed later when I understand
     //tm: tokenMark,
 }
-impl token{
-    //Init for the token
-    fn new(iden: tokenTypeEnum, tokenString: String) -> token{
+impl Token{
+    //Init for the Token
+    fn new(iden: tokenTypeEnum, tokenString: String) -> Token{
         //self.tokenMark = NULL;
-        // println!("Created the token struct");
-        println!("Created a token of type: '{}'", iden.to_string());
+        // println!("Created the Token struct");
+        println!("Created a Token of type: '{}'", iden.to_string());
 
-        token {
+        Token {
             tt: iden,
             tokenString: tokenString,
         }
     }
-    //Used for setting the token type
+    //Used for setting the Token type
     fn setTokenType(&mut self, newType: tokenTypeEnum){
         self.tt = newType;
     }
 }
 
-//Token ID class, derives from token class
-struct tokenId {
-    parent: token,
-    tokStr: String,
-}
 
-//Token Function class, derived from token class
+//Token Function class, derived from Token class
 struct tokenFunction{
-    parent: token,
+    parent: Token,
     tokStr: String,
-    argList: token<>,
-    returnType: token,
+    argList: Token<>,
+    returnType: Token,
 }
 
 //Structure for reporting errors and warnings
@@ -407,22 +407,35 @@ struct symbolTable{
     // the scope that an IDENTIFER is declared. In general when you exit a scope the symbol table will remove
     // any symbols defined in that scope from the symbol table. Again, we will solve this problem later; the
     // example methods for scope entry/exit are here to deomonstrate what we will probably want in the future
-    //symTab: hashTable<token>,
+    symTab: HashMap<String, Token>,
 }
 impl symbolTable{
     // The symbol table hashLook function should automatically create a new entry and mark it as an
-    // IDENTIFER token for any IDENTIFIER string that is not already in the symbol table. In some languages
+    // IDENTIFER Token for any IDENTIFIER string that is not already in the symbol table. In some languages
     // case does not matter to the uniqueness of the symbol. In this case, an easy place to solve this is to simply
     // upper case or lower case all strings in the symbol table API functions (and storage)
-    fn hashLook(mut lookupString: String){
-        println!("Looking up the idenntifier of the string");
+    fn new() -> symbolTable {
+        let mut symHash: HashMap<String, Token> = HashMap::new();
+        symbolTable{
+            symTab: symHash,
+        }
     }
-    fn enterScope(){
-        println!("To be used in the future");
+    //Returns the Token for a given string
+    fn hashLook(&self, mut lookupString: String) -> Token{
+        println!("Looking up the identifier of the string");
+        if let Some(tokenResp) = self.symTab.get(&lookupString){
+            return tokenResp.clone();
+        } else {
+            println!("Token not found, creating");
+            return Token::new(tokenTypeEnum::UNACCOUNTED, lookupString);
+        }
     }
-    fn exitScope(){
-        println!("To be used in the future");
-    }
+    // fn enterScope(){
+    //     println!("To be used in the future");
+    // }
+    // fn exitScope(){
+    //     println!("To be used in the future");
+    // }
 }
 
 

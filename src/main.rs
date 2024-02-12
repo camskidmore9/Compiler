@@ -185,7 +185,8 @@ impl Lexer{
                     }
                 }
                 self.inputFile.unGetChar();
-                let newToken: Token = Token::new(tokType, tokenString);
+                let newToken = self.symTab.hashLook(tokenString);
+                //let newToken: Token = Token::new(tokType, tokenString);
                 return newToken;
             }
 
@@ -421,13 +422,16 @@ impl symbolTable{
         }
     }
     //Returns the Token for a given string
-    fn hashLook(&self, mut lookupString: String) -> Token{
-        println!("Looking up the identifier of the string");
+    fn hashLook(&mut self, mut lookupString: String) -> Token{
+        // println!("Looking up the identifier of the string");
         if let Some(tokenResp) = self.symTab.get(&lookupString){
+            println!("Token found");
             return tokenResp.clone();
         } else {
             println!("Token not found, creating");
-            return Token::new(tokenTypeEnum::UNACCOUNTED, lookupString);
+            let newToken = Token::new(tokenTypeEnum::UNACCOUNTED, lookupString);
+            self.symTab.insert(newToken.tokenString.clone(), newToken.clone());
+            return newToken;
         }
     }
     // fn enterScope(){

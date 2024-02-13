@@ -48,6 +48,7 @@ use std::io::prelude::*;
 
 //The enumeration for saving Token types, this is a list of every type of Token there is
 #[derive(Clone)]
+#[derive(PartialEq)]
 enum tokenTypeEnum{
     PLUS, 
     MINUS, 
@@ -68,7 +69,8 @@ enum tokenTypeEnum{
     EOF,
     LETTER,
     UNACCOUNTED,
-    WORD
+    WORD,
+    STRING,
 }
 impl fmt::Display for tokenTypeEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -93,6 +95,8 @@ impl fmt::Display for tokenTypeEnum {
             tokenTypeEnum::LETTER => "LETTER",
             tokenTypeEnum::UNACCOUNTED => "UNACCOUNTED",
             tokenTypeEnum::WORD => "WORD",
+            tokenTypeEnum::STRING => "STRING",
+
 
         };
         write!(f, "{}", variant_str)
@@ -163,6 +167,34 @@ impl Lexer{
                         currChar = self.inputFile.getChar();
                     }
                 }
+            } else if c == '*' {
+                println!("multiline comment");
+                let mut nested: usize = 1;
+                // println!("Comment line found");
+                while let Some(c) = currChar {
+                    if c == '/' {
+                        currChar = self.inputFile.getChar();
+                        let Some(ch) = currChar else { todo!() };
+                        if ch == '*' {
+                            nested += 1;
+                            currChar = self.inputFile.getChar();
+                        }
+                    } else if c == '*' {
+                        currChar = self.inputFile.getChar();
+                        let Some(ch) = currChar else { todo!() };
+                        if ch == '/' {
+                            nested -= 1;
+                            if nested == 0 {
+                                currChar = self.inputFile.getChar();
+                                break;
+                            } else {
+                                currChar = self.inputFile.getChar();
+                            }
+                        }
+                    } else {
+                        currChar = self.inputFile.getChar();
+                    }
+                }
             }
         }
 
@@ -173,7 +205,7 @@ impl Lexer{
             //If the character is a letter
             Some(ch) if ch.is_ascii_alphabetic() => {
                 //Starts the tokenString
-                tokenString.push(ch);
+                //tokenString.push(ch);
                 let mut tokType: tokenTypeEnum = tokenTypeEnum::WORD;
                 //Iterates through until it stops finding numbers
                 while let Some(numC) = currChar {
@@ -193,7 +225,7 @@ impl Lexer{
             //If the character is a number
             Some(ch) if ch.is_ascii_digit() => {
                 //Starts the tokenString
-                tokenString.push(ch);
+                //tokenString.push(ch);
                 let mut tokType: tokenTypeEnum = tokenTypeEnum::INT;
                 //Iterates through until it stops finding numbers
                 while let Some(numC) = currChar {
@@ -202,15 +234,19 @@ impl Lexer{
                         currChar = self.inputFile.getChar();
                     //If the number has a decimal, meaning its a float
                     } else if numC == '.' {
-                        tokenString.push(ch);
+                        tokenString.push('.');
                         tokType = tokenTypeEnum::FLOAT;
                         currChar = self.inputFile.getChar();
                     } else {
                         break;
                     }
                 }
-                self.inputFile.unGetChar();
-                let newToken: Token = Token::new(tokType, tokenString);
+                //self.inputFile.unGetChar();
+                let mut newToken = self.symTab.hashLook(tokenString);
+                if newToken.tt != tokType {
+                    newToken.tt = tokType;
+                }
+                //let newToken: Token = Token::new(tokType, tokenString);
                 return newToken;
             }
 
@@ -218,9 +254,11 @@ impl Lexer{
             Some('<') => {
                 //println!("This character is a <.");
                 let mut nextNextChar = self.inputFile.getChar();
+                tokenString.push('<');
                 let Some(nextC) = nextNextChar else { todo!() };
                 if nextC == '=' {
                     // println!("This is a <=");
+                    tokenString.push('=');
                     let newToken = Token::new(crate::tokenTypeEnum::LESS_EQUALS, tokenString);
                     return newToken;
                 } else {
@@ -234,10 +272,13 @@ impl Lexer{
             //If the character is a >
             Some('>') => {
                 //println!("This character is a <.");
+                tokenString.push('>');
                 let mut nextNextChar = self.inputFile.getChar();
                 let Some(nextC) = nextNextChar else { todo!() };
                 if nextC == '=' {
                     // println!("This is a >=");
+                    tokenString.push('=');
+
                     let newToken = Token::new(crate::tokenTypeEnum::GREATER, tokenString);
                     return newToken;
                 } else {
@@ -250,19 +291,40 @@ impl Lexer{
 
             //If the character is a "
             Some('"') => {
-                println!("Found a double quote");
-                let newToken = Token::new(crate::tokenTypeEnum::UNACCOUNTED, tokenString);
+                currChar = self.inputFile.getChar();
+                let mut tokType: tokenTypeEnum = tokenTypeEnum::WORD;
+                // println!("Comment line found");
+                while let Some(numC) = currChar {
+                    if numC == '"' {
+                        break;
+                    } else {
+                        tokenString.push(numC);
+                    }
+                    currChar = self.inputFile.getChar();
+
+                }
+                //self.inputFile.unGetChar();
+                let mut newToken = self.symTab.hashLook(tokenString);
+                if newToken.tt != tokenTypeEnum::STRING {
+                    newToken.tt = tokenTypeEnum::STRING;
+                }
+                //let newToken: Token = Token::new(tokType, tokenString);
                 return newToken;
-                
+            }
+            //Somehow a \n makes it here, just runs it through another scan to get the next thing
+            Some('\n') => {
+                let newToken = self.scan();
+                return newToken;
             }
             Some(c) => {
                 // println!("This character is unaccounted for '{}'", c);
+                tokenString.push(c);
                 let newToken = Token::new(crate::tokenTypeEnum::UNACCOUNTED, tokenString);
                 return newToken;
             }
             None => {
-                // println!("This character is an None");
-                let newToken = Token::new(crate::tokenTypeEnum::EOF, tokenString);
+                // println!("This character is a None aka EOF");
+                let newToken = Token::new(crate::tokenTypeEnum::EOF, "EOF".to_string());
                 return newToken;
             }
         }
@@ -272,10 +334,15 @@ impl Lexer{
 
     //A function to scan through entire file
     fn scanThrough(&mut self){
-        while self.inputFile.currentCharIndex < self.inputFile.numChars{
-            let newToken: Token = self.scan();
+        let mut newToken: Token = self.scan();
+
+        println!("\n\nBeginning scan:");
+
+        while newToken.tokenString != "EOF".to_string(){
+            newToken = self.scan();
+            println!("< \"{}\" , {} >", newToken.tokenString, newToken.tt.to_string())
         };
-        println!("EOF Reached")
+        println!("\n\nEOF Reached")
     }
 
 }
@@ -359,7 +426,7 @@ impl Token{
     fn new(iden: tokenTypeEnum, tokenString: String) -> Token{
         //self.tokenMark = NULL;
         // println!("Created the Token struct");
-        println!("Created a Token of type: '{}'", iden.to_string());
+        // println!("Created a Token of type: '{}'", iden.to_string());
 
         Token {
             tt: iden,
@@ -425,11 +492,11 @@ impl symbolTable{
     fn hashLook(&mut self, mut lookupString: String) -> Token{
         // println!("Looking up the identifier of the string");
         if let Some(tokenResp) = self.symTab.get(&lookupString){
-            println!("Token found");
+            // println!("Token found");
             return tokenResp.clone();
         } else {
-            println!("Token not found, creating");
-            let newToken = Token::new(tokenTypeEnum::UNACCOUNTED, lookupString);
+            // println!("Token not found, creating");
+            let newToken = Token::new(tokenTypeEnum::IDENTIFIER, lookupString);
             self.symTab.insert(newToken.tokenString.clone(), newToken.clone());
             return newToken;
         }

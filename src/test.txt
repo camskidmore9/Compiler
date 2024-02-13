@@ -1,7 +1,13 @@
 test <
-test < 5.5 6
+test < 5.4 6 >=
+>
 // this is a test comment. It should not be parsed
-test test <= "
+test test <= 
+"test2"
+
+/* this is a test comment 
+    /* nested */
 
 
+test
 //test

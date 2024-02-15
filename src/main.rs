@@ -71,6 +71,8 @@ enum tokenTypeEnum{
     UNACCOUNTED,
     WORD,
     STRING,
+    RETURN,
+    
 }
 impl fmt::Display for tokenTypeEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -330,8 +332,6 @@ impl Lexer{
         }
     }
 
-
-
     //A function to scan through entire file
     fn scanThrough(&mut self){
         let mut newToken: Token = self.scan();
@@ -519,25 +519,6 @@ fn main() -> Result<()> {
     println!("Lexer filename: {} \nCharacter count: {}", myLexer.inputFile.fileName, myLexer.inputFile.numChars);
 
     myLexer.scanThrough();
-
-
-    // for mut char in myLexer.inputFile.fileContents.clone().chars(){
-    //     myLexer.scan();
-    // }
-    
-    
-    // let file = BufReader::new(File::open(&path)?);
-    // let stats = Stats::new(file)?;
-    // println!("File: {} characters: {}", path, stats.characters);
-
-    // //println!("Creating inFile structure");
-    // let mut f = inFile::new(path.as_str());
-    // f.setStats(stats);
-    // //println!("inFile: {}", f.fileName);
-    // f.printInfo();
-    // f.lineCnt = 5;
-    // f.printInfo();
-
 
     Ok(())
 }

@@ -1,7 +1,0 @@
-constantTable.hashLook(string):
-    returns a hashed tokenString for a given constant
-
-symbolTable.hashlook(string):
-    returns a token item for a given string.
-    I assume it checks for that string and if it exists, returns the token, if nore
-        creates the token and returns it

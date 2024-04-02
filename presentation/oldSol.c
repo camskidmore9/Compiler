@@ -1,29 +1,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-
-int memLeak(int numIn){
-    int *i = malloc(32);
-    i[0] = 5;
-
-    int retVal = i[0] + i[1] + numIn;
-
-    return retVal;
-}
-
-
 int main() {
-    int i = 10;
-    int x = memLeak(i);
+    char *c = malloc(10240);
 
-    // printf("%i\n", x);
+    c[0] = 'c';
 
-    for(int k = 0; k < 10000; k++) {
-        x = memLeak(x);
+    int i;
+    for (i = 0; i < 10; i++) { 
+        printf("%c\n", c[i]);
     }
 
-
-    printf("Final X: %i\n", x);
+    free(c);
 
     return 0;
 }

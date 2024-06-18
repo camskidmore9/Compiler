@@ -71,7 +71,10 @@ enum tokenTypeEnum{
     UNACCOUNTED,
     WORD,
     STRING,
+    SET_EQUALS,
+    CHECK_EQUALS,
     RETURN,
+    ERROR,
     
 }
 impl fmt::Display for tokenTypeEnum {
@@ -98,6 +101,12 @@ impl fmt::Display for tokenTypeEnum {
             tokenTypeEnum::UNACCOUNTED => "UNACCOUNTED",
             tokenTypeEnum::WORD => "WORD",
             tokenTypeEnum::STRING => "STRING",
+            tokenTypeEnum::RETURN => "RETURN",
+            tokenTypeEnum::SET_EQUALS => "SET_EQUALS",
+            tokenTypeEnum::CHECK_EQUALS => "CHECK_EQUALS",
+            tokenTypeEnum::ERROR => "ERROR",
+
+
 
 
         };
@@ -119,6 +128,7 @@ struct Lexer {
     //tokenType: tokenTypeEnum,
     inputFile: inFile,
     symTab: symbolTable,
+    tokenList: Vec<Token>,
     
 }
 impl Lexer{
@@ -128,10 +138,12 @@ impl Lexer{
         println!("Lexer created successfully");
         let mut symTable = symbolTable::new();
 
+
         Lexer { 
             //tokenType: (), 
             inputFile: newFile,
             symTab: symTable,
+            tokenList: Vec::new(),
         }
     }
     //The main function if the lexer
@@ -140,10 +152,12 @@ impl Lexer{
         //Gets the next character
         let mut currChar = self.inputFile.getChar();
 
+
         //Looks for the filler characters and removes them
         while let Some(c) = currChar {
+            
             if c == '\n' || c == '\t' || c == '\r' || c == ' ' {
-                //println!("Filler character found: '{}'", c);
+                // println!("Filler character found: '{}'", c);
                 
                 if c == '\n' {
                     self.inputFile.incLineCnt();
@@ -170,7 +184,7 @@ impl Lexer{
                     }
                 }
             } else if c == '*' {
-                println!("multiline comment");
+                // println!("multiline comment");
                 let mut nested: usize = 1;
                 // println!("Comment line found");
                 while let Some(c) = currChar {
@@ -208,10 +222,11 @@ impl Lexer{
             Some(ch) if ch.is_ascii_alphabetic() => {
                 //Starts the tokenString
                 //tokenString.push(ch);
+
                 let mut tokType: tokenTypeEnum = tokenTypeEnum::WORD;
                 //Iterates through until it stops finding numbers
                 while let Some(numC) = currChar {
-                    if numC.is_ascii_alphabetic() {
+                    if (numC.is_ascii_alphabetic() || numC.is_ascii_digit())  {
                         tokenString.push(numC);
                         currChar = self.inputFile.getChar();
                     } else {
@@ -291,6 +306,32 @@ impl Lexer{
                 }
             }
 
+            //If the character is a =
+            Some('=') => {
+                //println!("This character is a <.");
+                tokenString.push('=');
+                let mut nextNextChar = self.inputFile.getChar();
+                let Some(nextC) = nextNextChar else { todo!() };
+                if nextC == '=' {
+                    // println!("This is a >=");
+                    tokenString.push('=');
+
+                    let newToken = Token::new(crate::tokenTypeEnum::CHECK_EQUALS, tokenString);
+                    return newToken;
+                } else if nextC == ' ' {
+                    // println!("This is just a >");
+                    self.inputFile.unGetChar();
+                    let newToken = Token::new(crate::tokenTypeEnum::SET_EQUALS, tokenString);
+                    return newToken;
+                } else {
+                    println!("ERROR");
+
+                    self.inputFile.unGetChar();
+                    let newToken = Token::new(crate::tokenTypeEnum::ERROR, tokenString);
+                    return newToken;
+                }
+            }
+
             //If the character is a "
             Some('"') => {
                 currChar = self.inputFile.getChar();
@@ -331,18 +372,38 @@ impl Lexer{
             }
         }
     }
+    
+    //Prints all of the tokens
+    fn printTokenList(&mut self){
+        for token in &self.tokenList {
+            println!("< \"{}\" , {} >", token.tokenString, token.tt.to_string());
+        }
+    }
 
     //A function to scan through entire file
     fn scanThrough(&mut self){
-        let mut newToken: Token = self.scan();
+
+
 
         println!("\n\nBeginning scan:");
 
+        //Scans the first token and initializes the newToken variable
+        let mut newToken: Token = self.scan();
+        self.tokenList.push(newToken.clone());
+        // println!("First token: < \"{}\" , {} >", newToken.tokenString, newToken.tt.to_string());
+
+
+
+
         while newToken.tokenString != "EOF".to_string(){
             newToken = self.scan();
-            println!("< \"{}\" , {} >", newToken.tokenString, newToken.tt.to_string())
+            self.tokenList.push(newToken.clone());
+            // println!("< \"{}\" , {} >", newToken.tokenString, newToken.tt.to_string());
         };
-        println!("\n\nEOF Reached")
+        println!("\n\nEOF Reached");
+
+        
+        
     }
 
 }
@@ -519,6 +580,8 @@ fn main() -> Result<()> {
     println!("Lexer filename: {} \nCharacter count: {}", myLexer.inputFile.fileName, myLexer.inputFile.numChars);
 
     myLexer.scanThrough();
+
+    myLexer.printTokenList();
 
     Ok(())
 }

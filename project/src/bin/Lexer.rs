@@ -178,7 +178,7 @@ impl Lexer{
                     } else if c == '*' {
                         currChar = self.inputFile.getChar();
                         println!("new multi-line");
-                        let Some(ch) = currChar else { todo!("{}", println!("test")) };
+                        let Some(ch) = currChar else { todo!() };
                         if ch == '/' {
                             println!("Multiline ended");
                             nested -= 1;

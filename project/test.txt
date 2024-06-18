@@ -1,0 +1,15 @@
+penis test test <
+test < 5.4 6 >=
+>
+// this is a test comment. It should not be parsed
+test test <= 
+"test2"
+
+number1 = 1
+
+/* this is a test comment 
+    /* nested */
+
+
+test
+//test

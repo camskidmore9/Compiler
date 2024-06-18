@@ -1,1 +1,1 @@
-/home/cam/data/Compiler/target/debug/Lexer: /home/cam/data/Compiler/src/bin/Lexer.rs
+/home/cam/data/Compiler/project/target/debug/Lexer: /home/cam/data/Compiler/project/src/bin/Lexer.rs

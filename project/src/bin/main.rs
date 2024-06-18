@@ -146,6 +146,7 @@ impl Lexer{
             tokenList: Vec::new(),
         }
     }
+    
     //The main function if the lexer
     //Returns one Token
     fn scan(&mut self) -> Token{
@@ -408,6 +409,42 @@ impl Lexer{
 
 }
 
+
+//This is the master struct for the parser
+struct Parser {
+    tokenList: Vec<Token>,
+}
+impl Parser{
+    //Initialization function
+    fn new(lexer: &mut Lexer) -> Parser {
+        println!("Beginning creation of Parsedr");
+        let tokenList = lexer.tokenList.clone();
+        // let newFile = inFile::new(fileName);
+        println!("Parser created successfully");
+
+
+        Parser { 
+            tokenList,
+        }
+    }
+
+    fn parse(&mut self){
+        println!("Beginning parsing");
+
+        for token in &self.tokenList {
+            println!("< \"{}\" , {} >", token.tokenString, token.tt.to_string());
+        }
+    }
+
+    //Prints all of the tokens
+    fn printTokenList(&mut self){
+        for token in &self.tokenList {
+            println!("< \"{}\" , {} >", token.tokenString, token.tt.to_string());
+        }
+    }
+}
+
+
 //inFile Class
 struct inFile{
     attatchFile: bool,
@@ -582,6 +619,14 @@ fn main() -> Result<()> {
     myLexer.scanThrough();
 
     myLexer.printTokenList();
+
+    let mut myParser: Parser = Parser::new(&mut myLexer);
+
+    myParser.parse();
+    
+    // println!("My parser token list: ");
+    // myParser.printTokenList();
+    
 
     Ok(())
 }

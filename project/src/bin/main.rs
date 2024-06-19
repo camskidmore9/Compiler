@@ -75,6 +75,16 @@ enum tokenTypeEnum{
     CHECK_EQUALS,
     RETURN,
     ERROR,
+    PROGRAM,
+    IS,
+    BEGIN,
+    PROCEDURE,
+    IF,
+    ELSE,
+    GLOBAL,
+    VARIABLE,
+    THEN,
+    END,
     
 }
 impl fmt::Display for tokenTypeEnum {
@@ -105,6 +115,20 @@ impl fmt::Display for tokenTypeEnum {
             tokenTypeEnum::SET_EQUALS => "SET_EQUALS",
             tokenTypeEnum::CHECK_EQUALS => "CHECK_EQUALS",
             tokenTypeEnum::ERROR => "ERROR",
+            tokenTypeEnum::PROGRAM => "PROGRAM",
+            tokenTypeEnum::IS => "IS",
+            tokenTypeEnum::BEGIN => "BEGIN",
+            tokenTypeEnum::PROCEDURE => "PROCEDURE",
+            tokenTypeEnum::IF => "IF",
+            tokenTypeEnum::ELSE => "ELSE",
+            tokenTypeEnum::GLOBAL => "GLOBAL",
+            tokenTypeEnum::VARIABLE => "VARIABLE",
+            tokenTypeEnum::THEN => "THEN",
+            tokenTypeEnum::END => "END",
+
+
+
+
 
 
 
@@ -129,6 +153,8 @@ struct Lexer {
     inputFile: inFile,
     symTab: symbolTable,
     tokenList: Vec<Token>,
+    // reservedWords: [&str; 10],
+
     
 }
 impl Lexer{
@@ -417,7 +443,7 @@ struct Parser {
 impl Parser{
     //Initialization function
     fn new(lexer: &mut Lexer) -> Parser {
-        println!("Beginning creation of Parsedr");
+        println!("Beginning creation of Parser");
         let tokenList = lexer.tokenList.clone();
         // let newFile = inFile::new(fileName);
         println!("Parser created successfully");
@@ -428,13 +454,11 @@ impl Parser{
         }
     }
 
-    fn parse(&mut self){
-        println!("Beginning parsing");
-
-        for token in &self.tokenList {
-            println!("< \"{}\" , {} >", token.tokenString, token.tt.to_string());
-        }
+    fn parseThrough(&mut self) {
+        parse(&mut self.tokenList);
     }
+
+  
 
     //Prints all of the tokens
     fn printTokenList(&mut self){
@@ -443,6 +467,103 @@ impl Parser{
         }
     }
 }
+
+fn parse(tokenList: &mut Vec<Token>) -> Stmt {
+    println!("Beginning parsing");
+    let numTokens: usize = tokenList.len();
+    println!("Total number of tokens: {}", numTokens.to_string());
+
+    let mut scope: i32 = 0;
+    
+
+    // Iterate through tokenList using an index
+    for i in 0..tokenList.len() {
+        //Gets next token
+        let token = &tokenList[i];
+
+        //Creates 
+
+        match token.tt {
+            tokenTypeEnum::PROGRAM => {
+                println!("Found a program token");
+                //This is for the beginning of the program
+                if scope == 0{ 
+                    println!("Current i: {}", i);
+                    let isToken = &mut tokenList[i + 2];
+                    if !(isToken.tt == tokenTypeEnum::IS) {
+                        println!("ERROR");
+                        isToken.printToken();
+                        return Stmt::StringLiteral("Not Good".to_string());
+                    } else {
+                        println!("Program statemtnt good");
+                        return Stmt::StringLiteral("Good".to_string());
+                    }
+
+                }
+            }
+            _ => {
+                return Stmt::StringLiteral("Unwritten".to_string());
+                // Handle any other token types that need specific handling
+                // println!("Found something other than a word");
+                // println!("< \"{}\" , {} >", token.tokenString, token.tt.to_string());
+            }
+        }
+        return Stmt::StringLiteral("Unwritten".to_string());
+
+        // Example: Move forward by one token
+        // if i + 1 < self.tokenList.len() {
+        //     let next_token = &self.tokenList[i + 1];
+        //     // Handle next token if needed
+        // }
+
+        // Example: Move backward by one token
+        // if i > 0 {
+        //     let prev_token = &self.tokenList[i - 1];
+        //     // Handle previous token if needed
+        // }
+    }
+    println!("No elements in this token list");
+    return Stmt::StringLiteral("ZERO ELEMENTS".to_string());
+}
+
+
+
+
+
+// Define the types of expressions
+#[derive(Debug)]
+pub enum Expr {
+    IntLiteral(i64),            // Integer literal
+    BinOp(Box<Expr>, BinOp, Box<Expr>),  // Binary operation: left operand, operator, right operand
+    VarRef(String),             // Variable reference
+}
+
+// Define supported binary operators
+#[derive(Debug)]
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
+// These are the types of statements that are available
+#[derive(Debug)]
+pub enum Stmt {
+    StringLiteral(String),
+    Expr(Expr),                     // Expression statement
+    Assign(String, Expr),           // Assignment statement: variable name, expression
+    VarDecl(String),                // Variable declaration statement
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),  // If statement: condition, body, optional else body
+    Block(Vec<Stmt>),               // Block statement: list of statements
+}
+
+// // This is the struct that defines the vector of statements
+// #[derive(Debug)]
+// pub struct Program {
+//     pub statements: Vec<Stmt>,  // List of statements in the program
+// }
+
 
 
 //inFile Class
@@ -535,6 +656,10 @@ impl Token{
     fn setTokenType(&mut self, newType: tokenTypeEnum){
         self.tt = newType;
     }
+
+    fn printToken(&mut self){
+        println!("< \"{}\" , {} >", self.tokenString, self.tt.to_string());
+    }
 }
 
 
@@ -581,7 +706,34 @@ impl symbolTable{
     // case does not matter to the uniqueness of the symbol. In this case, an easy place to solve this is to simply
     // upper case or lower case all strings in the symbol table API functions (and storage)
     fn new() -> symbolTable {
+        //Creates the empty hash map
         let mut symHash: HashMap<String, Token> = HashMap::new();
+
+        //List of all of the tokens that should be in the symbol table when initializes. Like all of the reserved words and such
+        let tokens = vec![
+            ("if", Token::new(tokenTypeEnum::IF, "if".to_string())),
+            ("else", Token::new(tokenTypeEnum::ELSE, "else".to_string())),
+            ("procedure", Token::new(tokenTypeEnum::PROCEDURE, "procedure".to_string())),
+            ("is", Token::new(tokenTypeEnum::IS, "is".to_string())),
+            ("global", Token::new(tokenTypeEnum::GLOBAL, "global".to_string())),
+            ("variable", Token::new(tokenTypeEnum::VARIABLE, "variable".to_string())),
+            ("begin", Token::new(tokenTypeEnum::BEGIN, "begin".to_string())),
+            ("then", Token::new(tokenTypeEnum::THEN, "then".to_string())),
+            ("end", Token::new(tokenTypeEnum::END, "end".to_string())),
+            ("program", Token::new(tokenTypeEnum::PROGRAM, "program".to_string())),
+
+        ];
+
+        for (key, value) in tokens {
+            symHash.insert(key.to_string(), value);
+        }
+
+        println!("Symbol table created and seeded");
+        // for (key, token) in &mut symHash {
+        //     println!("Key: {}, Token: {:?}", key, token.printToken());
+        // }
+
+
         symbolTable{
             symTab: symHash,
         }
@@ -618,11 +770,11 @@ fn main() -> Result<()> {
 
     myLexer.scanThrough();
 
-    myLexer.printTokenList();
+    // myLexer.printTokenList();
 
     let mut myParser: Parser = Parser::new(&mut myLexer);
 
-    myParser.parse();
+    myParser.parseThrough();
     
     // println!("My parser token list: ");
     // myParser.printTokenList();

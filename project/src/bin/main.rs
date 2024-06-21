@@ -481,8 +481,6 @@ fn parse(tokenList: &mut Vec<Token>) -> Stmt {
         //Gets next token
         let token = &tokenList[i];
 
-        //Creates 
-
         match token.tt {
             tokenTypeEnum::PROGRAM => {
                 println!("Found a program token");

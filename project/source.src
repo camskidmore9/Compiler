@@ -14,7 +14,8 @@ if(i > 100) then
 	i:= 1110;
 end if;
 
-/*Single #Line Block Comments*/
+/*Single 1#Line Block Comments*/
+/*Single 1 #Line Block Comments*/
 
 /*
 /*

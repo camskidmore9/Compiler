@@ -85,6 +85,10 @@ enum tokenTypeEnum{
     VARIABLE,
     THEN,
     END,
+    SEMICOLON,
+    COLON,
+    PERIOD,
+    
     
 }
 impl fmt::Display for tokenTypeEnum {
@@ -125,12 +129,9 @@ impl fmt::Display for tokenTypeEnum {
             tokenTypeEnum::VARIABLE => "VARIABLE",
             tokenTypeEnum::THEN => "THEN",
             tokenTypeEnum::END => "END",
-
-
-
-
-
-
+            tokenTypeEnum::SEMICOLON => "SEMICOLON",
+            tokenTypeEnum::COLON => "COLON",
+            tokenTypeEnum::PERIOD => "PERIOD",
 
 
         };
@@ -146,6 +147,11 @@ enum charType{
     SYMBOL,
     EOF,
 }
+
+
+///////////////////////// LEXER SECTION /////////////////////////
+//This section contains all of the necessary code for the Lexical analysis section of the code.
+//This includes all of the structs and functions that make up token definitions and such.
 
 //This is the master struct for the lexer
 struct Lexer {
@@ -261,8 +267,8 @@ impl Lexer{
                     }
                 }
                 self.inputFile.unGetChar();
-                let newToken = self.symTab.hashLook(tokenString);
-                //let newToken: Token = Token::new(tokType, tokenString);
+                let newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
+                //let newToken: Token = Token::new(tokType,tokenString, self.inputFile.lineCnt.to_string());
                 return newToken;
             }
 
@@ -285,12 +291,12 @@ impl Lexer{
                         break;
                     }
                 }
-                //self.inputFile.unGetChar();
-                let mut newToken = self.symTab.hashLook(tokenString);
+                self.inputFile.unGetChar();
+                let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
                 if newToken.tt != tokType {
                     newToken.tt = tokType;
                 }
-                //let newToken: Token = Token::new(tokType, tokenString);
+                //let newToken: Token = Token::new(tokType,tokenString, self.inputFile.lineCnt.to_string());
                 return newToken;
             }
 
@@ -303,12 +309,12 @@ impl Lexer{
                 if nextC == '=' {
                     // println!("This is a <=");
                     tokenString.push('=');
-                    let newToken = Token::new(crate::tokenTypeEnum::LESS_EQUALS, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::LESS_EQUALS,tokenString, self.inputFile.lineCnt.to_string());
                     return newToken;
                 } else {
                     // println!("This is just a <");
                     self.inputFile.unGetChar();
-                    let newToken = Token::new(crate::tokenTypeEnum::LESS, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::LESS,tokenString, self.inputFile.lineCnt.to_string());
                     return newToken;
                 }
             }
@@ -323,12 +329,12 @@ impl Lexer{
                     // println!("This is a >=");
                     tokenString.push('=');
 
-                    let newToken = Token::new(crate::tokenTypeEnum::GREATER, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::GREATER,tokenString, self.inputFile.lineCnt.to_string());
                     return newToken;
                 } else {
                     // println!("This is just a >");
                     self.inputFile.unGetChar();
-                    let newToken = Token::new(crate::tokenTypeEnum::GREATER_EQUALS, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::GREATER_EQUALS,tokenString, self.inputFile.lineCnt.to_string());
                     return newToken;
                 }
             }
@@ -343,20 +349,71 @@ impl Lexer{
                     // println!("This is a >=");
                     tokenString.push('=');
 
-                    let newToken = Token::new(crate::tokenTypeEnum::CHECK_EQUALS, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::CHECK_EQUALS,tokenString, self.inputFile.lineCnt.to_string());
                     return newToken;
                 } else if nextC == ' ' {
                     // println!("This is just a >");
                     self.inputFile.unGetChar();
-                    let newToken = Token::new(crate::tokenTypeEnum::SET_EQUALS, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::SET_EQUALS,tokenString, self.inputFile.lineCnt.to_string());
                     return newToken;
                 } else {
                     println!("ERROR");
 
                     self.inputFile.unGetChar();
-                    let newToken = Token::new(crate::tokenTypeEnum::ERROR, tokenString);
+                    let newToken = Token::new(crate::tokenTypeEnum::ERROR,tokenString, self.inputFile.lineCnt.to_string());
                     return newToken;
                 }
+            }
+
+            //If the character is a ;
+            Some(';') => {
+                println!("Current line: {}", self.inputFile.lineCnt.to_string());
+                tokenString.push(';');
+                let newToken = Token::new(crate::tokenTypeEnum::SEMICOLON,tokenString, self.inputFile.lineCnt.to_string());
+                return newToken;
+            }
+
+            //If the character is a :
+            Some(':') => {
+                tokenString.push(':');
+                let newToken = Token::new(crate::tokenTypeEnum::COLON,tokenString, self.inputFile.lineCnt.to_string());
+                return newToken;
+            }
+
+
+            //If the character is a :
+            Some('[') => {
+                tokenString.push('[');
+                let newToken = Token::new(crate::tokenTypeEnum::L_BRACKET,tokenString, self.inputFile.lineCnt.to_string());
+                return newToken;
+            }
+
+            //If the character is a :
+            Some(']') => {
+                tokenString.push(']');
+                let newToken = Token::new(crate::tokenTypeEnum::R_BRACKET,tokenString, self.inputFile.lineCnt.to_string());
+                return newToken;
+            }
+
+            //If the character is a :
+            Some('(') => {
+                tokenString.push('(');
+                let newToken = Token::new(crate::tokenTypeEnum::L_PAREN,tokenString, self.inputFile.lineCnt.to_string());
+                return newToken;
+            }
+
+            //If the character is a :
+            Some(')') => {
+                tokenString.push(')');
+                let newToken = Token::new(crate::tokenTypeEnum::R_PAREN,tokenString, self.inputFile.lineCnt.to_string());
+                return newToken;
+            }
+
+            //If the character is a :
+            Some('.') => {
+                tokenString.push('.');
+                let newToken = Token::new(crate::tokenTypeEnum::PERIOD,tokenString, self.inputFile.lineCnt.to_string());
+                return newToken;
             }
 
             //If the character is a "
@@ -374,13 +431,14 @@ impl Lexer{
 
                 }
                 //self.inputFile.unGetChar();
-                let mut newToken = self.symTab.hashLook(tokenString);
+                let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
                 if newToken.tt != tokenTypeEnum::STRING {
                     newToken.tt = tokenTypeEnum::STRING;
                 }
-                //let newToken: Token = Token::new(tokType, tokenString);
+                //let newToken: Token = Token::new(tokType,tokenString, self.inputFile.lineCnt.to_string());
                 return newToken;
             }
+            
             //Somehow a \n makes it here, just runs it through another scan to get the next thing
             Some('\n') => {
                 let newToken = self.scan();
@@ -389,12 +447,12 @@ impl Lexer{
             Some(c) => {
                 // println!("This character is unaccounted for '{}'", c);
                 tokenString.push(c);
-                let newToken = Token::new(crate::tokenTypeEnum::UNACCOUNTED, tokenString);
+                let newToken = Token::new(crate::tokenTypeEnum::UNACCOUNTED,tokenString, self.inputFile.lineCnt.to_string());
                 return newToken;
             }
             None => {
                 // println!("This character is a None aka EOF");
-                let newToken = Token::new(crate::tokenTypeEnum::EOF, "EOF".to_string());
+                let newToken = Token::new(crate::tokenTypeEnum::EOF, "EOF".to_string(), self.inputFile.lineCnt.to_string());
                 return newToken;
             }
         }
@@ -403,7 +461,7 @@ impl Lexer{
     //Prints all of the tokens
     fn printTokenList(&mut self){
         for token in &self.tokenList {
-            println!("< \"{}\" , {} >", token.tokenString, token.tt.to_string());
+            println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
         }
     }
 
@@ -435,6 +493,109 @@ impl Lexer{
 
 }
 
+//inFile Class, this is where the file to be compiled is loaded
+struct inFile{
+    attatchFile: bool,
+    fileName: String,
+    fileContents: String,
+    lineCnt: usize,
+    numChars: usize,
+    totalLines: usize,
+    file : BufReader <File>,
+    currentCharIndex: usize,
+}
+impl inFile {
+    //Init function, opens the file
+    fn new(fileName: &str) -> inFile {
+        let mut newFile = BufReader::new(File::open(fileName).unwrap());
+        let fileContentsString = std::fs::read_to_string(fileName).expect("Unable to read file");
+        let numChars = fileContentsString.len();
+        println!("Creating the inFile structure");
+        
+        inFile {
+            fileName: fileName.to_string(),
+            attatchFile: false,
+            lineCnt: 0,
+            currentCharIndex: 0,
+            totalLines: 0,
+            file: newFile,
+            fileContents: fileContentsString,
+            numChars: numChars,
+
+        }
+
+    }
+
+    //Prints the stats of the file (for debugging)
+    fn printInfo(&self){
+        println!("File Name: {}", self.fileName);
+        println!("Lines: {}", self.lineCnt);
+    }
+
+    //Gets the next character in the file string
+    fn getChar(&mut self) -> Option<char> {
+        if let Some(current_char) = self.fileContents.chars().nth(self.currentCharIndex) {
+            self.currentCharIndex += 1;
+            Some(current_char)
+        } else {
+            None
+        }
+    }
+    //"ungets" the next character by decrementing the current index. Used for looking ahead then going back
+    fn unGetChar(&mut self) {
+        self.currentCharIndex -= 1;
+    }
+
+    //A function to increment the current line
+    fn incLineCnt(&mut self){
+        self.lineCnt += 1;
+    }
+
+}
+
+//A class for the tokenMark object (IDk what this means or what it is/does)
+// struct tokenMark{
+//     tmUnionType: mark1
+// }
+
+
+//Token class, this is where tokens are defined and setup
+#[derive(Clone)]
+struct Token{
+    tt: tokenTypeEnum,
+    tokenString: String,
+    lineNum: String,
+    //To be completed later when I understand
+    //tm: tokenMark,
+}
+impl Token{
+    //Init for the Token
+    fn new(iden: tokenTypeEnum, tokenString: String, line: String) -> Token{
+        Token {
+            tt: iden,
+            tokenString: tokenString,
+            lineNum: line,
+        }
+    }
+    //Used for setting the Token type
+    fn setTokenType(&mut self, newType: tokenTypeEnum){
+        self.tt = newType;
+    }
+
+    fn printToken(&mut self){
+        println!("< \"{}\" , {} >", self.tokenString, self.tt.to_string());
+    }
+}
+
+//Token Function class, derived from Token class
+struct tokenFunction{
+    parent: Token,
+    tokStr: String,
+    argList: Token<>,
+    returnType: Token,
+}
+
+///////////////////////// /LEXER SECTION /////////////////////////
 
 //This is the master struct for the parser
 struct Parser {
@@ -463,7 +624,7 @@ impl Parser{
     //Prints all of the tokens
     fn printTokenList(&mut self){
         for token in &self.tokenList {
-            println!("< \"{}\" , {} >", token.tokenString, token.tt.to_string());
+            println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
         }
     }
 }
@@ -545,129 +706,42 @@ pub enum BinOp {
     Div,
 }
 
+//Defines the supported variable types
+// Define supported binary operators
+#[derive(Debug)]
+pub enum VarType {
+    Int(i64),
+    Bool(bool),
+    Float(f64),
+}
+
 // These are the types of statements that are available
 #[derive(Debug)]
 pub enum Stmt {
     StringLiteral(String),
     Expr(Expr),                     // Expression statement
     Assign(String, Expr),           // Assignment statement: variable name, expression
-    VarDecl(String),                // Variable declaration statement
+    VarDecl(String, VarType),                // Variable declaration statement
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),  // If statement: condition, body, optional else body
+    // Program(String, Box<Stmt>),     //The program itself. Contains the name of the program as a string and then the Box of the program
     Block(Vec<Stmt>),               // Block statement: list of statements
 }
 
-// // This is the struct that defines the vector of statements
-// #[derive(Debug)]
-// pub struct Program {
-//     pub statements: Vec<Stmt>,  // List of statements in the program
-// }
-
-
-
-//inFile Class
-struct inFile{
-    attatchFile: bool,
-    fileName: String,
-    fileContents: String,
-    lineCnt: usize,
-    numChars: usize,
-    totalLines: usize,
-    file : BufReader <File>,
-    currentCharIndex: usize,
-}
-impl inFile {
-    //Init function, opens the file
-    fn new(fileName: &str) -> inFile {
-        let mut newFile = BufReader::new(File::open(fileName).unwrap());
-        let fileContentsString = std::fs::read_to_string(fileName).expect("Unable to read file");
-        let numChars = fileContentsString.len();
-        println!("Creating the inFile structure");
-        
-        inFile {
-            fileName: fileName.to_string(),
-            attatchFile: false,
-            lineCnt: 0,
-            currentCharIndex: 0,
-            totalLines: 0,
-            file: newFile,
-            fileContents: fileContentsString,
-            numChars: numChars,
-
-        }
-
-    }
-
-    //Prints the stats of the file (for debugging)
-    fn printInfo(&self){
-        println!("File Name: {}", self.fileName);
-        println!("Lines: {}", self.lineCnt);
-    }
-
-    //Gets the next character in the file string
-    fn getChar(&mut self) -> Option<char> {
-        if let Some(current_char) = self.fileContents.chars().nth(self.currentCharIndex) {
-            self.currentCharIndex += 1;
-            Some(current_char)
-        } else {
-            None
-        }
-    }
-    //"ungets" the next character by decrementing the current index. Used for looking ahead then going back
-    fn unGetChar(&mut self) {
-        self.currentCharIndex -= 1;
-    }
-
-    //A function to increment the current line
-    fn incLineCnt(&mut self){
-        self.lineCnt += 1;
-    }
-
-}
-
-//A class for the tokenMark object (IDk what this means or what it is/does)
-// struct tokenMark{
-//     tmUnionType: mark1
-// }
-
-
-//Token class
-#[derive(Clone)]
-struct Token{
-    tt: tokenTypeEnum,
-    tokenString: String,
-    //To be completed later when I understand
-    //tm: tokenMark,
-}
-impl Token{
-    //Init for the Token
-    fn new(iden: tokenTypeEnum, tokenString: String) -> Token{
-        //self.tokenMark = NULL;
-        // println!("Created the Token struct");
-        // println!("Created a Token of type: '{}'", iden.to_string());
-
-        Token {
-            tt: iden,
-            tokenString: tokenString,
-        }
-    }
-    //Used for setting the Token type
-    fn setTokenType(&mut self, newType: tokenTypeEnum){
-        self.tt = newType;
-    }
-
-    fn printToken(&mut self){
-        println!("< \"{}\" , {} >", self.tokenString, self.tt.to_string());
-    }
+// This is the struct that defines the vector of statements
+#[derive(Debug)]
+pub struct Program {
+    pub name: String,           //The name of the program
+    pub header: Vec<Stmt>,      //The statments that make up the header of the program:
+                                //  -Variable inits
+                                //  -Functions
+                                //  -That stuff
+    pub main: Vec<Stmt>,        //The actual main part of the code
+    // pub statements: Vec<Stmt>,  // List of statements in the program
 }
 
 
-//Token Function class, derived from Token class
-struct tokenFunction{
-    parent: Token,
-    tokStr: String,
-    argList: Token<>,
-    returnType: Token,
-}
+
+
 
 //Structure for reporting errors and warnings
 struct reporting{
@@ -709,16 +783,16 @@ impl symbolTable{
 
         //List of all of the tokens that should be in the symbol table when initializes. Like all of the reserved words and such
         let tokens = vec![
-            ("if", Token::new(tokenTypeEnum::IF, "if".to_string())),
-            ("else", Token::new(tokenTypeEnum::ELSE, "else".to_string())),
-            ("procedure", Token::new(tokenTypeEnum::PROCEDURE, "procedure".to_string())),
-            ("is", Token::new(tokenTypeEnum::IS, "is".to_string())),
-            ("global", Token::new(tokenTypeEnum::GLOBAL, "global".to_string())),
-            ("variable", Token::new(tokenTypeEnum::VARIABLE, "variable".to_string())),
-            ("begin", Token::new(tokenTypeEnum::BEGIN, "begin".to_string())),
-            ("then", Token::new(tokenTypeEnum::THEN, "then".to_string())),
-            ("end", Token::new(tokenTypeEnum::END, "end".to_string())),
-            ("program", Token::new(tokenTypeEnum::PROGRAM, "program".to_string())),
+            ("if", Token::new(tokenTypeEnum::IF, "if".to_string(), "0".to_string())),
+            ("else", Token::new(tokenTypeEnum::ELSE, "else".to_string(), "0".to_string())),
+            ("procedure", Token::new(tokenTypeEnum::PROCEDURE, "procedure".to_string(), "0".to_string())),
+            ("is", Token::new(tokenTypeEnum::IS, "is".to_string(), "0".to_string())),
+            ("global", Token::new(tokenTypeEnum::GLOBAL, "global".to_string(), "0".to_string())),
+            ("variable", Token::new(tokenTypeEnum::VARIABLE, "variable".to_string(), "0".to_string())),
+            ("begin", Token::new(tokenTypeEnum::BEGIN, "begin".to_string(), "0".to_string())),
+            ("then", Token::new(tokenTypeEnum::THEN, "then".to_string(), "0".to_string())),
+            ("end", Token::new(tokenTypeEnum::END, "end".to_string(), "0".to_string())),
+            ("program", Token::new(tokenTypeEnum::PROGRAM, "program".to_string(), "0".to_string())),
 
         ];
 
@@ -737,14 +811,14 @@ impl symbolTable{
         }
     }
     //Returns the Token for a given string
-    fn hashLook(&mut self, mut lookupString: String) -> Token{
+    fn hashLook(&mut self, mut lookupString: String, line: String) -> Token{
         // println!("Looking up the identifier of the string");
         if let Some(tokenResp) = self.symTab.get(&lookupString){
             // println!("Token found");
             return tokenResp.clone();
         } else {
             // println!("Token not found, creating");
-            let newToken = Token::new(tokenTypeEnum::IDENTIFIER, lookupString);
+            let newToken = Token::new(tokenTypeEnum::IDENTIFIER, lookupString, line.to_string());
             self.symTab.insert(newToken.tokenString.clone(), newToken.clone());
             return newToken;
         }
@@ -774,8 +848,8 @@ fn main() -> Result<()> {
 
     myParser.parseThrough();
     
-    // println!("My parser token list: ");
-    // myParser.printTokenList();
+    println!("\n\nMy parser token list: ");
+    myParser.printTokenList();
     
 
     Ok(())

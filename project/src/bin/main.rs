@@ -267,7 +267,8 @@ impl Lexer{
                     }
                 }
                 self.inputFile.unGetChar();
-                let newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
+                let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
+                newToken.lineNum = self.inputFile.lineCnt.to_string();
                 //let newToken: Token = Token::new(tokType,tokenString, self.inputFile.lineCnt.to_string());
                 return newToken;
             }
@@ -293,6 +294,7 @@ impl Lexer{
                 }
                 self.inputFile.unGetChar();
                 let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
+                newToken.lineNum = self.inputFile.lineCnt.to_string();
                 if newToken.tt != tokType {
                     newToken.tt = tokType;
                 }
@@ -432,6 +434,7 @@ impl Lexer{
                 }
                 //self.inputFile.unGetChar();
                 let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
+                newToken.lineNum = self.inputFile.lineCnt.to_string();
                 if newToken.tt != tokenTypeEnum::STRING {
                     newToken.tt = tokenTypeEnum::STRING;
                 }
@@ -564,7 +567,7 @@ impl inFile {
 struct Token{
     tt: tokenTypeEnum,
     tokenString: String,
-    lineNum: String,
+    pub lineNum: String,
     //To be completed later when I understand
     //tm: tokenMark,
 }
@@ -746,6 +749,8 @@ pub struct Program {
 //Structure for reporting errors and warnings
 struct reporting{
     errorStatus: bool,
+    warnings: Vec<String>,
+    errors: Vec<String>,
 }
 impl reporting{
     fn new(&mut self) -> reporting{
@@ -753,12 +758,17 @@ impl reporting{
 
         reporting{
             errorStatus: false,
+            warnings: Vec::new(),
+            errors: Vec::new(),
+
         }
     }
-    fn reportError(message: String){
+    fn reportError(&mut self, message: String){
+        self.errors.push(message.clone());
         println!("reporting error: {}", message);
     }
-    fn reportWarning(message: String){
+    fn reportWarning(&mut self, message: String){
+        self.warnings.push(message.clone());
         println!("reporting warning: {}", message);
     }
 }

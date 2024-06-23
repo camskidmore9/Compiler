@@ -38,13 +38,10 @@ use {
     utf8_chars::BufReadCharsExt,
 };
 
+///////////////////////// Setup /////////////////////////
+
 //imports
 use std::io::prelude::*;
-
-
-// #[derive(Debug, Display)]
-// #[display("format")]
-
 
 //The enumeration for saving Token types, this is a list of every type of Token there is
 #[derive(Clone)]
@@ -147,6 +144,10 @@ enum charType{
     SYMBOL,
     EOF,
 }
+///////////////////////// /Setup /////////////////////////
+
+
+
 
 
 ///////////////////////// LEXER SECTION /////////////////////////
@@ -159,6 +160,7 @@ struct Lexer {
     inputFile: inFile,
     symTab: symbolTable,
     tokenList: Vec<Token>,
+    reports: Reporting,
     // reservedWords: [&str; 10],
 
     
@@ -169,6 +171,7 @@ impl Lexer{
         let newFile = inFile::new(fileName);
         println!("Lexer created successfully");
         let mut symTable = symbolTable::new();
+        let mut report: Reporting = Reporting::new();
 
 
         Lexer { 
@@ -176,6 +179,7 @@ impl Lexer{
             inputFile: newFile,
             symTab: symTable,
             tokenList: Vec::new(),
+            reports: report,
         }
     }
     
@@ -369,7 +373,7 @@ impl Lexer{
 
             //If the character is a ;
             Some(';') => {
-                println!("Current line: {}", self.inputFile.lineCnt.to_string());
+                // println!("Current line: {}", self.inputFile.lineCnt.to_string());
                 tokenString.push(';');
                 let newToken = Token::new(crate::tokenTypeEnum::SEMICOLON,tokenString, self.inputFile.lineCnt.to_string());
                 return newToken;
@@ -556,12 +560,6 @@ impl inFile {
 
 }
 
-//A class for the tokenMark object (IDk what this means or what it is/does)
-// struct tokenMark{
-//     tmUnionType: mark1
-// }
-
-
 //Token class, this is where tokens are defined and setup
 #[derive(Clone)]
 struct Token{
@@ -600,9 +598,15 @@ struct tokenFunction{
 
 ///////////////////////// /LEXER SECTION /////////////////////////
 
+
+
+
+///////////////////////// PARSER SECTION /////////////////////////
+
 //This is the master struct for the parser
 struct Parser {
-    tokenList: Vec<Token>,
+    pub tokenList: Vec<Token>,
+    reports: Reporting,
 }
 impl Parser{
     //Initialization function
@@ -611,85 +615,180 @@ impl Parser{
         let tokenList = lexer.tokenList.clone();
         // let newFile = inFile::new(fileName);
         println!("Parser created successfully");
+        let mut report: Reporting = Reporting::new();
 
 
         Parser { 
             tokenList,
+            reports: report,
         }
+    }  
+
+
+    fn startParse(&mut self) -> Result<(Reporting, Option<Stmt>), Reporting> {
+        let mut tokList = self.tokenList.clone();
+        return self.parse(tokList, 0);
     }
 
-    fn parseThrough(&mut self) {
-        parse(&mut self.tokenList);
-    }
+    fn parse(&mut self, mut tokenList: Vec<Token>, mut scope: i32) -> Result<(Reporting, Option<Stmt>), Reporting> {
+        
+        let mut newBlock = Stmt::Block(Vec::new());
 
-  
+        
 
-    //Prints all of the tokens
-    fn printTokenList(&mut self){
-        for token in &self.tokenList {
-            println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-        }
-    }
-}
 
-fn parse(tokenList: &mut Vec<Token>) -> Stmt {
-    println!("Beginning parsing");
-    let numTokens: usize = tokenList.len();
-    println!("Total number of tokens: {}", numTokens.to_string());
-
-    let mut scope: i32 = 0;
+        // let mut tokenList = &mut self.tokenList;
+        println!("Beginning parsing");
+        let numTokens: usize = tokenList.len();
+        println!("Total number of tokens: {}", numTokens.to_string());
     
+        // let mut scope: i32 = 0;
+    
+        
 
-    // Iterate through tokenList using an index
-    for i in 0..tokenList.len() {
-        //Gets next token
-        let token = &tokenList[i];
-
-        match token.tt {
-            tokenTypeEnum::PROGRAM => {
-                println!("Found a program token");
-                //This is for the beginning of the program
-                if scope == 0{ 
-                    println!("Current i: {}", i);
-                    let isToken = &mut tokenList[i + 2];
-                    if !(isToken.tt == tokenTypeEnum::IS) {
-                        println!("ERROR");
-                        isToken.printToken();
-                        return Stmt::StringLiteral("Not Good".to_string());
+        println!("Current scope: {}", scope.to_string());
+            
+        let mut i: usize = 0;
+        let tokLen: usize = tokenList.len();
+        // Iterate through tokenList using an index
+        
+        while i < tokLen {
+            // println!("current i: {}", i.to_string());
+            //Gets next token
+            let token = &tokenList[i];
+    
+            match token.tt {
+                tokenTypeEnum::PROGRAM => {
+                    //If program is just starting, check it.
+                    if scope == 0{
+                        //Checks the first line
+                        let firstToken = &tokenList[0];
+                        if let tokenTypeEnum::PROGRAM = firstToken.tt {
+                            let thirdToken = &tokenList[2];
+                            if let tokenTypeEnum::IS = thirdToken.tt {
+                                let programName: &String = &tokenList[1].tokenString;
+                                println!("Program declaration good");
+                            } else {
+                                self.reports.reportError("Program declaration incorrect. \n Program must start with: 'program [Program name] is'".to_string());
+                                return Err(self.reports.clone());
+                            }
+                            // println!("TEST");
+                            scope = 1;
+                            i = 3;
+                            // println!("Yes");
+                        } else {
+                            self.reports.reportError("Program declaration incorrect. \n Program must start with: 'program [Program name] is'".to_string());
+                            return Err(self.reports.clone());
+                        }
                     } else {
-                        println!("Program statemtnt good");
-                        return Stmt::StringLiteral("Good".to_string());
+                        // println!("PROGRAM but not the first one");
+                        i = i + 1;
+                    }
+                }
+                tokenTypeEnum::VARIABLE => {
+                    let mut k = i + 1;
+                    let mut nextTok = &tokenList[k];
+                    // println!("Found a variable token");
+                    let mut curStmt: Vec<&Token> = vec![];
+                    curStmt.push(token);
+                    while nextTok.tt != tokenTypeEnum::SEMICOLON {
+                        curStmt.push(nextTok);
+                        k = k + 1;
+                        nextTok = &tokenList[k];
+
+                        // println!("iterating");
+                    }
+                    curStmt.push(nextTok);
+                    // println!("Found the semicolon");
+                    let varName = &curStmt[1].tokenString;
+                    println!("\nCurrent variable declaration name: {}", varName);
+                    
+                    // for token in &curStmt {
+                    //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+                    // }
+
+                    //Error checking
+                    if curStmt[2].tt != tokenTypeEnum::COLON {
+                        println!("{}", curStmt[2].tokenString);
+                        self.reports.reportError(format!(
+                            "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : [variable type]'", 
+                            curStmt[3].lineNum, 
+                        ));
+                        return Err(self.reports.clone());
+                    } else {
+                        if curStmt[4].tt != tokenTypeEnum::SEMICOLON {
+                            if curStmt[4].tt != tokenTypeEnum::L_BRACKET {
+                                self.reports.reportError(format!(
+                                    "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : integer[arraySize]'", 
+                                    curStmt[3].lineNum, 
+                                ));
+                                return Err(self.reports.clone());
+                            } else {
+                                if curStmt[3].tokenString == "integer" {
+                                    if curStmt[5].tt == tokenTypeEnum::INT {
+                                        let arSizeStr = curStmt[5].tokenString.clone();
+                                        if let Ok(arSize) = arSizeStr.parse::<usize>() {
+                                            let newVar = Stmt::VarDecl(varName.clone(), VarType::IntArray(vec![0; arSize]));
+                                            let _ = newBlock.push_to_block(newVar);
+                                        } else {
+                                            self.reports.reportError(format!(
+                                                "In line: {}, Invlaid array size", 
+                                                curStmt[3].lineNum, 
+                                            ));
+                                            return Err(self.reports.clone());
+                                        }
+                                    } else {
+                                        self.reports.reportError(format!(
+                                            "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : integer[arraySize]'", 
+                                            curStmt[3].lineNum, 
+                                        ));
+                                        return Err(self.reports.clone());
+                                    }
+                                } else {
+                                    self.reports.reportError(format!(
+                                        "In line: {}, '{}' is not a valid variable type", 
+                                        curStmt[3].lineNum, 
+                                        curStmt[3].tokenString
+                                    ));
+                                    return Err(self.reports.clone());
+                                }
+                            }
+                        } else if curStmt[3].tokenString == "string" {
+                            let newVar = Stmt::VarDecl(varName.clone(), VarType::Str("".to_string()));
+                            let _ = newBlock.push_to_block(newVar);
+                        } else if curStmt[3].tokenString == "integer" {
+                            let newVar = Stmt::VarDecl(varName.clone(), VarType::Int(0));
+                            let _ = newBlock.push_to_block(newVar);
+                        }  else if curStmt[3].tokenString == "bool" {
+                            let newVar = Stmt::VarDecl(varName.clone(), VarType::Bool(false));
+                            let _ = newBlock.push_to_block(newVar);
+                        }  else if curStmt[3].tokenString == "float" {
+                            let newVar = Stmt::VarDecl(varName.clone(), VarType::Float(0.0));
+                            let _ = newBlock.push_to_block(newVar);
+                        }
                     }
 
+                    // let newVar = Stmt::VarDecl(varName, );
+                    
+                    k = k - 1;
+                    i = k;
+                    
+
+                    
+                }
+                _ => {
+                    // return Ok((self.reports.clone(), Some(Stmt::StringLiteral("Unwritten".to_string()))));
+                    // println!("Unwritten");
+                    i = i + 1;
                 }
             }
-            _ => {
-                return Stmt::StringLiteral("Unwritten".to_string());
-                // Handle any other token types that need specific handling
-                // println!("Found something other than a word");
-                // println!("< \"{}\" , {} >", token.tokenString, token.tt.to_string());
-            }
         }
-        return Stmt::StringLiteral("Unwritten".to_string());
-
-        // Example: Move forward by one token
-        // if i + 1 < self.tokenList.len() {
-        //     let next_token = &self.tokenList[i + 1];
-        //     // Handle next token if needed
-        // }
-
-        // Example: Move backward by one token
-        // if i > 0 {
-        //     let prev_token = &self.tokenList[i - 1];
-        //     // Handle previous token if needed
-        // }
+        // println!("No elements in this token list");
+        println!("Here is the block: {}", newBlock);
+        Ok((self.reports.clone(), Some(Stmt::StringLiteral("ZERO ELEMENTS".to_string()))))
     }
-    println!("No elements in this token list");
-    return Stmt::StringLiteral("ZERO ELEMENTS".to_string());
+    
 }
-
-
-
 
 
 // Define the types of expressions
@@ -699,6 +798,16 @@ pub enum Expr {
     BinOp(Box<Expr>, BinOp, Box<Expr>),  // Binary operation: left operand, operator, right operand
     VarRef(String),             // Variable reference
 }
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expr::IntLiteral(i) => write!(f, "{}", i),
+            Expr::BinOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
+            Expr::VarRef(var) => write!(f, "{}", var),
+        }
+    }
+}
+
 
 // Define supported binary operators
 #[derive(Debug)]
@@ -708,15 +817,39 @@ pub enum BinOp {
     Mul,
     Div,
 }
+impl fmt::Display for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+            BinOp::Mul => write!(f, "*"),
+            BinOp::Div => write!(f, "/"),
+        }
+    }
+}
 
 //Defines the supported variable types
-// Define supported binary operators
 #[derive(Debug)]
 pub enum VarType {
     Int(i64),
     Bool(bool),
     Float(f64),
+    Str(String),
+    IntArray(Vec<i32>),
 }
+
+impl fmt::Display for VarType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VarType::Int(i) => write!(f, "Int({})", i),
+            VarType::Bool(b) => write!(f, "Bool({})", b),
+            VarType::Float(fl) => write!(f, "Float({})", fl),
+            VarType::Str(s) => write!(f, "Str({})", s),
+            VarType::IntArray(arr) => write!(f, "IntArray({:?})", arr),
+        }
+    }
+}
+
 
 // These are the types of statements that are available
 #[derive(Debug)]
@@ -724,39 +857,79 @@ pub enum Stmt {
     StringLiteral(String),
     Expr(Expr),                     // Expression statement
     Assign(String, Expr),           // Assignment statement: variable name, expression
-    VarDecl(String, VarType),                // Variable declaration statement
-    If(Expr, Box<Stmt>, Option<Box<Stmt>>),  // If statement: condition, body, optional else body
-    // Program(String, Box<Stmt>),     //The program itself. Contains the name of the program as a string and then the Box of the program
+    VarDecl(String, VarType),       // Variable declaration statement
+    // If(Expr, Box<Stmt>, Option<Box<Stmt>>),  // If statement: condition, body, optional else body
     Block(Vec<Stmt>),               // Block statement: list of statements
+    Error(Reporting),
 }
+impl fmt::Display for Stmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Stmt::StringLiteral(s) => write!(f, "StringLiteral({})", s),
+            Stmt::Expr(expr) => write!(f, "Expr({})", expr),
+            Stmt::Assign(var, expr) => write!(f, "Assign({}, {})", var, expr),
+            Stmt::VarDecl(var, vartype) => write!(f, "VarDecl({}, {})", var, vartype),
+            // Stmt::If(cond, body, else_body) => {
+            //     write!(f, "If({}, {}, {})",
+            //         cond,
+            //         body.as_ref().map_or("None".to_string(), |stmt| stmt.to_string()),
+            //         else_body.as_ref().map_or("None".to_string(), |stmt| stmt.to_string())
+            //     )
+            // },
+            Stmt::Block(stmts) => {
+                write!(f, "Block(")?;
+                for stmt in stmts {
+                    write!(f, "\n{}; ", stmt)?;
+                }
+                write!(f, ")")
+            },
+            Stmt::Error(reporting) => write!(f, "Error({:?})", reporting),
+        }
+    }
+}
+impl Stmt {
+    // Function to push a statement into a Block variant
+    pub fn push_to_block(&mut self, stmt: Stmt) -> Result<(), String> {
+        match self {
+            Stmt::Block(stmts) => {
+                stmts.push(stmt);
+                Ok(())
+            },
+            _ => Err("Cannot push to a non-Block statement".to_string())
+        }
+    }
+}
+
 
 // This is the struct that defines the vector of statements
 #[derive(Debug)]
 pub struct Program {
     pub name: String,           //The name of the program
-    pub header: Vec<Stmt>,      //The statments that make up the header of the program:
-                                //  -Variable inits
-                                //  -Functions
-                                //  -That stuff
-    pub main: Vec<Stmt>,        //The actual main part of the code
+    // pub header: Vec<Stmt>,      //The statments that make up the header of the program:
+    //                             //  -Variable inits
+    //                             //  -Functions
+    //                             //  -That stuff
+    pub statements: Vec<Stmt>,        //The actual main part of the code
+    pub report: Reporting,
     // pub statements: Vec<Stmt>,  // List of statements in the program
 }
+
+///////////////////////// /PARSER SECTION /////////////////////////
 
 
 
 
 
 //Structure for reporting errors and warnings
-struct reporting{
+#[derive(Debug, Clone)]
+pub struct Reporting{
     errorStatus: bool,
     warnings: Vec<String>,
     errors: Vec<String>,
 }
-impl reporting{
-    fn new(&mut self) -> reporting{
-        self.errorStatus = false;
-
-        reporting{
+impl Reporting{
+    fn new() -> Reporting{
+        Reporting{
             errorStatus: false,
             warnings: Vec::new(),
             errors: Vec::new(),
@@ -765,11 +938,11 @@ impl reporting{
     }
     fn reportError(&mut self, message: String){
         self.errors.push(message.clone());
-        println!("reporting error: {}", message);
+        // println!("reporting error: {}", message);
     }
     fn reportWarning(&mut self, message: String){
         self.warnings.push(message.clone());
-        println!("reporting warning: {}", message);
+        // println!("reporting warning: {}", message);
     }
 }
 
@@ -844,23 +1017,43 @@ impl symbolTable{
 
 
 //The main section of the code
-fn main() -> Result<()> {
-    
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Get the path from command line arguments
     let path = env::args().nth(1).expect("Please specify an input file");
-    let mut myLexer: Lexer = Lexer::new(&path);
+    let mut myLexer = Lexer::new(&path);
     println!("Lexer filename: {} \nCharacter count: {}", myLexer.inputFile.fileName, myLexer.inputFile.numChars);
 
+    // Scan through the input
     myLexer.scanThrough();
 
-    // myLexer.printTokenList();
+    // Initialize the parser
+    let mut myParser = Parser::new(&mut myLexer);
 
-    let mut myParser: Parser = Parser::new(&mut myLexer);
+    println!("\n\nParsing now");
+    // Call the parse function and handle the result
+    match myParser.startParse() {
+        Ok((reporting, Some(stmt))) => {
+            println!("\n\nParsing succeeded.");
+            println!("Reporting: {:?}", reporting);
+            println!("Parsed Statement: {:?}", stmt);
+            // Continue with normal flow
+        }
+        Ok((reporting, None)) => {
+            println!("\n\nParsing succeeded, but no statement was returned.");
+            println!("Reporting: {:?}", reporting);
+            // Continue with normal flow
+        }
+        Err(reporting) => {
+            eprintln!("\n\nParsing failed.");
+            eprintln!("Reporting: {:?}", reporting);
+            // Handle the error gracefully, log, recover, etc.
+        }
+    }
 
-    myParser.parseThrough();
-    
-    println!("\n\nMy parser token list: ");
-    myParser.printTokenList();
-    
+    // Print the parser's token list
+    // println!("\n\nMy parser token list: ");
+    // myParser.printTokenList();
+
 
     Ok(())
 }

@@ -85,6 +85,10 @@ enum tokenTypeEnum{
     SEMICOLON,
     COLON,
     PERIOD,
+    END_PROGRAM,
+    END_PROCEDURE,
+    END_IF,
+
     
     
 }
@@ -129,6 +133,12 @@ impl fmt::Display for tokenTypeEnum {
             tokenTypeEnum::SEMICOLON => "SEMICOLON",
             tokenTypeEnum::COLON => "COLON",
             tokenTypeEnum::PERIOD => "PERIOD",
+            tokenTypeEnum::END_PROCEDURE => "END_PROCEDURE",
+            tokenTypeEnum::END_PROGRAM => "END_PROGRAM",
+            tokenTypeEnum::END_IF => "END_IF",
+
+
+
 
 
         };
@@ -381,9 +391,22 @@ impl Lexer{
 
             //If the character is a :
             Some(':') => {
+                // /println!("This character is a <.");
                 tokenString.push(':');
-                let newToken = Token::new(crate::tokenTypeEnum::COLON,tokenString, self.inputFile.lineCnt.to_string());
-                return newToken;
+                let mut nextNextChar = self.inputFile.getChar();
+                let Some(nextC) = nextNextChar else { todo!() };
+                if nextC == '=' {
+                    // println!("This is a :=");
+                    tokenString.push('=');
+
+                    let newToken = Token::new(crate::tokenTypeEnum::SET_EQUALS,tokenString, self.inputFile.lineCnt.to_string());
+                    return newToken;
+                } else {
+                    // println!("This is just a >");
+                    self.inputFile.unGetChar();
+                    let newToken = Token::new(crate::tokenTypeEnum::COLON,tokenString, self.inputFile.lineCnt.to_string());
+                    return newToken;
+                }
             }
 
 
@@ -472,9 +495,48 @@ impl Lexer{
         }
     }
 
+    fn secondPass(&mut self) -> Vec<Token>{
+        let mut newTokList = Vec::new(); 
+        let mut i: usize = 0;
+        while i < self.tokenList.len() {
+            let token = &self.tokenList[i];
+            match token.tt {
+                tokenTypeEnum::END => {
+                    println!("End found");
+                    let nextToken = &self.tokenList[i+1];
+                    if nextToken.tt == tokenTypeEnum::PROGRAM {
+                        println!("Combining end and program");
+                        let newToken = Token::new(crate::tokenTypeEnum::END_PROGRAM,"END_PROGRAM".to_string(), nextToken.lineNum.to_string());
+                        newTokList.push(newToken.clone());
+                        i = i + 1;
+                    } else if nextToken.tt == tokenTypeEnum::PROCEDURE {
+                        println!("Combining end and procedure");
+                        let newToken = Token::new(crate::tokenTypeEnum::END_PROCEDURE,"END_PROCEDURE".to_string(), nextToken.lineNum.to_string());
+                        newTokList.push(newToken.clone());
+                        i = i + 1;
+                    } else if nextToken.tt == tokenTypeEnum::IF {
+                        println!("Combining end and if");
+                        let newToken = Token::new(crate::tokenTypeEnum::END_IF,"END_IF".to_string(), nextToken.lineNum.to_string());
+                        newTokList.push(newToken.clone());
+                        i = i + 1;
+                    } else {
+                        println!("other end with type: {}", nextToken.tt);
+                        newTokList.push(token.clone());
+
+                    }
+                }
+                _ => {
+                    // Handle other token types
+                    newTokList.push(token.clone());
+                }
+            }
+            i = i + 1;
+        }
+        return newTokList;
+    }
+
     //A function to scan through entire file
     fn scanThrough(&mut self){
-
 
 
         println!("\n\nBeginning scan:");
@@ -493,6 +555,11 @@ impl Lexer{
             // println!("< \"{}\" , {} >", newToken.tokenString, newToken.tt.to_string());
         };
         println!("\n\nEOF Reached");
+
+        println!("Starting second pass");
+        let newTokList = self.secondPass();
+        self.tokenList = newTokList;
+        println!("Second pass finished");
 
         
         
@@ -634,29 +701,23 @@ impl Parser{
         
         let mut newBlock = Stmt::Block(Vec::new());
 
-        
-
-
         // let mut tokenList = &mut self.tokenList;
         println!("Beginning parsing");
         let numTokens: usize = tokenList.len();
         println!("Total number of tokens: {}", numTokens.to_string());
     
-        // let mut scope: i32 = 0;
-    
-        
-
-        println!("Current scope: {}", scope.to_string());
+        // println!("Current scope: {}", scope.to_string());
             
         let mut i: usize = 0;
         let tokLen: usize = tokenList.len();
         // Iterate through tokenList using an index
         
         while i < tokLen {
-            // println!("current i: {}", i.to_string());
             //Gets next token
             let token = &tokenList[i];
-    
+            // println!("current i: {} on token: {}", i.to_string(), token.tokenString);
+
+            
             match token.tt {
                 tokenTypeEnum::PROGRAM => {
                     //If program is just starting, check it.
@@ -701,7 +762,7 @@ impl Parser{
                     curStmt.push(nextTok);
                     // println!("Found the semicolon");
                     let varName = &curStmt[1].tokenString;
-                    println!("\nCurrent variable declaration name: {}", varName);
+                    // println!("\nCurrent variable declaration name: {}", varName);
                     
                     // for token in &curStmt {
                     //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
@@ -709,7 +770,7 @@ impl Parser{
 
                     //Error checking
                     if curStmt[2].tt != tokenTypeEnum::COLON {
-                        println!("{}", curStmt[2].tokenString);
+                        // println!("{}", curStmt[2].tokenString);
                         self.reports.reportError(format!(
                             "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : [variable type]'", 
                             curStmt[3].lineNum, 
@@ -770,11 +831,82 @@ impl Parser{
 
                     // let newVar = Stmt::VarDecl(varName, );
                     
-                    k = k - 1;
+                    k = k + 1;
                     i = k;
+                    println!("Variable initialized");
                     
 
                     
+                }
+                // tokenTypeEnum::BEGIN => {
+                //     let mut k = i + 1;
+                //     let mut nextTok = &tokenList[k];
+                //     println!("\nFound a program begin");
+                //     let mut curStmt: Vec<&Token> = vec![];
+                //     curStmt.push(token);
+                //     while nextTok.tt != tokenTypeEnum::END_PROGRAM {
+                //         curStmt.push(nextTok);
+                //         k = k + 1;
+                //         nextTok = &tokenList[k];
+
+                //         // println!("iterating");
+                //     }
+                //     curStmt.push(nextTok);
+                //     println!("Found the end program");
+                    
+                //     curStmt.remove(0);
+
+                //     for token in &curStmt {
+                //         println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+                //     }
+
+                //     let progBlock = self.parse(curStmt);
+                    
+
+
+                //     i = i + 1;
+                // }
+                tokenTypeEnum::IDENTIFIER => {
+                    let mut k = i + 1;
+                    let mut nextTok = &tokenList[k];
+                    println!("\n\nFound an identifier");
+                    let mut curStmt: Vec<&Token> = vec![];
+                    curStmt.push(token);
+                    while nextTok.tt != tokenTypeEnum::SEMICOLON {
+                        curStmt.push(nextTok);
+                        k = k + 1;
+                        nextTok = &tokenList[k];
+
+                        // println!("iterating");
+                    }
+                    curStmt.push(nextTok);
+                    // println!("Found the semicolon");
+
+                    // println!("{}", curStmt[1].tokenString);
+                    if(curStmt[1].tt == tokenTypeEnum::SET_EQUALS) {
+                        let varName = &curStmt[0].tokenString;
+                        // println!("command length: {}", &curStmt.len().to_string());
+                        if (curStmt.len() == 4) {
+                            println!("\n\nSimple set equals found");
+                            if(curStmt[2].tt == tokenTypeEnum::INT){
+                                let newExpr = Expr::IntLiteral(curStmt[2].tokenString.parse().unwrap());
+                                let newVar = Stmt::Assign(varName.clone(), newExpr);
+                                let _ = newBlock.push_to_block(newVar);
+                            } else if(curStmt[2].tt == tokenTypeEnum::STRING){
+                                let strValue = &curStmt[0].tokenString;
+                                let newExpr = Expr::StringLiteral(strValue.clone());
+                                let newVar = Stmt::Assign(varName.clone(), newExpr);
+                                let _ = newBlock.push_to_block(newVar);
+                            }
+                        }
+                        
+                    }
+
+                    // for token in &curStmt {
+                    //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+                    // }
+
+                    i = i + 1;
                 }
                 _ => {
                     // return Ok((self.reports.clone(), Some(Stmt::StringLiteral("Unwritten".to_string()))));
@@ -784,8 +916,15 @@ impl Parser{
             }
         }
         // println!("No elements in this token list");
-        println!("Here is the block: {}", newBlock);
+        println!("\n\nHere is the block: {}", newBlock);
         Ok((self.reports.clone(), Some(Stmt::StringLiteral("ZERO ELEMENTS".to_string()))))
+    }
+
+    //Prints all of the tokens
+    fn printTokenList(&mut self){
+        for token in &self.tokenList {
+            println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+        }
     }
     
 }
@@ -794,7 +933,8 @@ impl Parser{
 // Define the types of expressions
 #[derive(Debug)]
 pub enum Expr {
-    IntLiteral(i64),            // Integer literal
+    IntLiteral(i64),                       // Integer literal
+    StringLiteral(String),                //A string value
     BinOp(Box<Expr>, BinOp, Box<Expr>),  // Binary operation: left operand, operator, right operand
     VarRef(String),             // Variable reference
 }
@@ -802,6 +942,7 @@ impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::IntLiteral(i) => write!(f, "{}", i),
+            Expr::StringLiteral(i) => write!(f, "{}", i),
             Expr::BinOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
             Expr::VarRef(var) => write!(f, "{}", var),
         }

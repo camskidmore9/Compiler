@@ -1,0 +1,10 @@
+program MyTestProgram is
+
+begin
+
+if(i > 100) then
+	i:= 1110;
+
+end if;
+
+end program.

@@ -502,25 +502,25 @@ impl Lexer{
             let token = &self.tokenList[i];
             match token.tt {
                 tokenTypeEnum::END => {
-                    println!("End found");
+                    // println!("End found");
                     let nextToken = &self.tokenList[i+1];
                     if nextToken.tt == tokenTypeEnum::PROGRAM {
-                        println!("Combining end and program");
+                        // println!("Combining end and program");
                         let newToken = Token::new(crate::tokenTypeEnum::END_PROGRAM,"END_PROGRAM".to_string(), nextToken.lineNum.to_string());
                         newTokList.push(newToken.clone());
                         i = i + 1;
                     } else if nextToken.tt == tokenTypeEnum::PROCEDURE {
-                        println!("Combining end and procedure");
+                        // println!("Combining end and procedure");
                         let newToken = Token::new(crate::tokenTypeEnum::END_PROCEDURE,"END_PROCEDURE".to_string(), nextToken.lineNum.to_string());
                         newTokList.push(newToken.clone());
                         i = i + 1;
                     } else if nextToken.tt == tokenTypeEnum::IF {
-                        println!("Combining end and if");
+                        // println!("Combining end and if");
                         let newToken = Token::new(crate::tokenTypeEnum::END_IF,"END_IF".to_string(), nextToken.lineNum.to_string());
                         newTokList.push(newToken.clone());
                         i = i + 1;
                     } else {
-                        println!("other end with type: {}", nextToken.tt);
+                        // println!("other end with type: {}", nextToken.tt);
                         newTokList.push(token.clone());
 
                     }
@@ -539,7 +539,7 @@ impl Lexer{
     fn scanThrough(&mut self){
 
 
-        println!("\n\nBeginning scan:");
+        println!("\nBeginning scan:");
 
         //Scans the first token and initializes the newToken variable
         let mut newToken: Token = self.scan();
@@ -554,9 +554,9 @@ impl Lexer{
             self.tokenList.push(newToken.clone());
             // println!("< \"{}\" , {} >", newToken.tokenString, newToken.tt.to_string());
         };
-        println!("\n\nEOF Reached");
+        // println!("\n\nEOF Reached");
 
-        println!("Starting second pass");
+        // println!("Starting second pass");
         let newTokList = self.secondPass();
         self.tokenList = newTokList;
         println!("Second pass finished");
@@ -678,10 +678,10 @@ struct Parser {
 impl Parser{
     //Initialization function
     fn new(lexer: &mut Lexer) -> Parser {
-        println!("Beginning creation of Parser");
+        // println!("\nBeginning creation of Parser");
         let tokenList = lexer.tokenList.clone();
         // let newFile = inFile::new(fileName);
-        println!("Parser created successfully");
+        println!("\n\nParser created");
         let mut report: Reporting = Reporting::new();
 
 
@@ -693,18 +693,17 @@ impl Parser{
 
 
     fn startParse(&mut self) -> Result<(Reporting, Option<Stmt>), Reporting> {
+        println!("Starting master parse");
         let mut tokList = self.tokenList.clone();
         return self.parse(tokList, 0);
     }
 
     fn parse(&mut self, mut tokenList: Vec<Token>, mut scope: i32) -> Result<(Reporting, Option<Stmt>), Reporting> {
-        
         let mut newBlock = Stmt::Block(Vec::new());
-
         // let mut tokenList = &mut self.tokenList;
-        println!("Beginning parsing");
+        println!("Beginning individual parse");
         let numTokens: usize = tokenList.len();
-        println!("Total number of tokens: {}", numTokens.to_string());
+        // println!("Total number of tokens: {}", numTokens.to_string());
     
         // println!("Current scope: {}", scope.to_string());
             
@@ -728,7 +727,7 @@ impl Parser{
                             let thirdToken = &tokenList[2];
                             if let tokenTypeEnum::IS = thirdToken.tt {
                                 let programName: &String = &tokenList[1].tokenString;
-                                println!("Program declaration good");
+                                // println!("Program declaration good");
                             } else {
                                 self.reports.reportError("Program declaration incorrect. \n Program must start with: 'program [Program name] is'".to_string());
                                 return Err(self.reports.clone());
@@ -833,43 +832,66 @@ impl Parser{
                     
                     k = k + 1;
                     i = k;
-                    println!("Variable initialized");
+                    // println!("Variable initialized");
                     
 
                     
                 }
-                // tokenTypeEnum::BEGIN => {
-                //     let mut k = i + 1;
-                //     let mut nextTok = &tokenList[k];
-                //     println!("\nFound a program begin");
-                //     let mut curStmt: Vec<&Token> = vec![];
-                //     curStmt.push(token);
-                //     while nextTok.tt != tokenTypeEnum::END_PROGRAM {
-                //         curStmt.push(nextTok);
-                //         k = k + 1;
-                //         nextTok = &tokenList[k];
-
-                //         // println!("iterating");
-                //     }
-                //     curStmt.push(nextTok);
-                //     println!("Found the end program");
+                tokenTypeEnum::BEGIN => {
+                    let mut k = i + 1;
+                    let mut nextTok = &tokenList[k];
+                    // println!("\nFound a program begin");
+                    let mut curStmt: Vec<Token> = vec![];
+                    curStmt.push(token.clone());
+                    while nextTok.tt != tokenTypeEnum::END_PROGRAM {
+                        curStmt.push(nextTok.clone());
+                        k = k + 1;
+                        nextTok = &tokenList[k];
+                    }
+                    curStmt.push(nextTok.clone());
+                    // println!("Found the end program");
                     
-                //     curStmt.remove(0);
+                    curStmt.remove(0);
+                
+                    // for token in &curStmt {
+                    //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+                    // }
+                
+                    // let progBlock = ;
+                    let subLen = curStmt.len().clone();
 
-                //     for token in &curStmt {
-                //         println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                //     }
+                    match self.parse(curStmt, scope.clone()) {
+                        Ok((reporting, Some(stmt))) => {
+                            // println!("\n\nParsing succeeded.");
+                            // println!("Reporting: {:?}", reporting);
+                            // println!("Parsed Statement: {:?}", stmt);
+                            // println!("Returned block: {}", stmt);
 
-                //     let progBlock = self.parse(curStmt);
+                            let _ = newBlock.push_to_block(stmt);
+
+                            // Continue with normal flow
+                        }
+                        Ok((reporting, None)) => {
+                            // println!("\n\nParsing succeeded, but no statement was returned.");
+                            // println!("Reporting: {:?}", reporting);
+                            // Continue with normal flow
+                        }
+                        Err(reporting) => {
+                            // eprintln!("\n\nParsing failed.");
+                            // eprintln!("Reporting: {:?}", reporting);
+                            // Handle the error gracefully, log, recover, etc.
+                        }
+                    }
+
+
+
                     
-
-
-                //     i = i + 1;
-                // }
+                    i = i + subLen;
+                }
                 tokenTypeEnum::IDENTIFIER => {
                     let mut k = i + 1;
                     let mut nextTok = &tokenList[k];
-                    println!("\n\nFound an identifier");
+                    // println!("\n\nFound an identifier");
                     let mut curStmt: Vec<&Token> = vec![];
                     curStmt.push(token);
                     while nextTok.tt != tokenTypeEnum::SEMICOLON {
@@ -887,7 +909,7 @@ impl Parser{
                         let varName = &curStmt[0].tokenString;
                         // println!("command length: {}", &curStmt.len().to_string());
                         if (curStmt.len() == 4) {
-                            println!("\n\nSimple set equals found");
+                            // println!("\n\nSimple set equals found");
                             if(curStmt[2].tt == tokenTypeEnum::INT){
                                 let newExpr = Expr::IntLiteral(curStmt[2].tokenString.parse().unwrap());
                                 let newVar = Stmt::Assign(varName.clone(), newExpr);
@@ -915,9 +937,10 @@ impl Parser{
                 }
             }
         }
-        // println!("No elements in this token list");
-        println!("\n\nHere is the block: {}", newBlock);
-        Ok((self.reports.clone(), Some(Stmt::StringLiteral("ZERO ELEMENTS".to_string()))))
+        // // println!("No elements in this token list");
+        println!("Individual parse finished");
+        // Ok((self.reports.clone(), Some(Stmt::StringLiteral("ZERO ELEMENTS".to_string()))))
+        Ok((self.reports.clone(), Some(newBlock)))
     }
 
     //Prints all of the tokens
@@ -1003,31 +1026,8 @@ pub enum Stmt {
     Block(Vec<Stmt>),               // Block statement: list of statements
     Error(Reporting),
 }
-impl fmt::Display for Stmt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Stmt::StringLiteral(s) => write!(f, "StringLiteral({})", s),
-            Stmt::Expr(expr) => write!(f, "Expr({})", expr),
-            Stmt::Assign(var, expr) => write!(f, "Assign({}, {})", var, expr),
-            Stmt::VarDecl(var, vartype) => write!(f, "VarDecl({}, {})", var, vartype),
-            // Stmt::If(cond, body, else_body) => {
-            //     write!(f, "If({}, {}, {})",
-            //         cond,
-            //         body.as_ref().map_or("None".to_string(), |stmt| stmt.to_string()),
-            //         else_body.as_ref().map_or("None".to_string(), |stmt| stmt.to_string())
-            //     )
-            // },
-            Stmt::Block(stmts) => {
-                write!(f, "Block(")?;
-                for stmt in stmts {
-                    write!(f, "\n{}; ", stmt)?;
-                }
-                write!(f, ")")
-            },
-            Stmt::Error(reporting) => write!(f, "Error({:?})", reporting),
-        }
-    }
-}
+
+
 impl Stmt {
     // Function to push a statement into a Block variant
     pub fn push_to_block(&mut self, stmt: Stmt) -> Result<(), String> {
@@ -1037,6 +1037,23 @@ impl Stmt {
                 Ok(())
             },
             _ => Err("Cannot push to a non-Block statement".to_string())
+        }
+    }
+    pub fn display(&self, indent: usize) {
+        let indentation = " ".repeat(indent);
+        match self {
+            Stmt::StringLiteral(s) => println!("{}StringLiteral({})", indentation, s),
+            Stmt::Expr(expr) => println!("{}Expr({})", indentation, expr),
+            Stmt::Assign(var, expr) => println!("{}Assign({}, {})", indentation, var, expr),
+            Stmt::VarDecl(var, vartype) => println!("{}VarDecl({}, {})", indentation, var, vartype),
+            Stmt::Block(stmts) => {
+                println!("{}Block([", indentation);
+                for stmt in stmts {
+                    stmt.display(indent + 2);
+                }
+                println!("{}])", indentation);
+            },
+            Stmt::Error(reporting) => println!("{}Error({:?})", indentation, reporting),
         }
     }
 }
@@ -1170,13 +1187,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the parser
     let mut myParser = Parser::new(&mut myLexer);
 
-    println!("\n\nParsing now");
+    // println!("\n\nParsing now");
     // Call the parse function and handle the result
     match myParser.startParse() {
         Ok((reporting, Some(stmt))) => {
-            println!("\n\nParsing succeeded.");
+            println!("\n\nParsing completed successfully.");
             println!("Reporting: {:?}", reporting);
-            println!("Parsed Statement: {:?}", stmt);
+            stmt.display(0);
             // Continue with normal flow
         }
         Ok((reporting, None)) => {

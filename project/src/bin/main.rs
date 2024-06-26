@@ -773,11 +773,9 @@ impl Parser{
 
     fn parse(&mut self, mut tokenList: Vec<Token>, mut scope: i32) -> Result<(Reporting, Option<Stmt>), Reporting> {
         // let mut tokenList = &mut self.tokenList;
-        println!("Beginning individual parse");
-        let numTokens: usize = tokenList.len();
-        // println!("Total number of tokens: {}", numTokens.to_string());
-    
-        // println!("Current scope: {}", scope.to_string());
+        let mut newBlock = Stmt::Block(Vec::new());
+
+        // println!("Beginning individual parse");
             
         let mut i: usize = 0;
         let tokLen: usize = tokenList.len();
@@ -798,8 +796,91 @@ impl Parser{
                         if let tokenTypeEnum::PROGRAM = firstToken.tt {
                             let thirdToken = &tokenList[2];
                             if let tokenTypeEnum::IS = thirdToken.tt {
-                                let programName: &String = &tokenList[1].tokenString;
-                                // println!("Program declaration good");
+                                //Gets the program name
+                                let programName: String = tokenList[1].tokenString.clone();                                
+                                
+                                //Removes the program statement
+                                tokenList.drain(0..3);
+
+                                //Finds where the header ends and the body begins
+                                let mut beginInt = 0;
+                                let mut beginScope = 0;
+                                for token in &tokenList{
+                                    // println!("Current token: {}", token.tokenString);
+                                    if (token.tt == tokenTypeEnum::BEGIN) && (beginScope == 0){
+                                        // println!("Found the end");
+                                        break;
+                                    } else if (token.tt == tokenTypeEnum::PROCEDURE) {
+                                        beginScope = beginScope + 1;
+                                        beginInt = beginInt + 1;
+                                    } else if (token.tt == tokenTypeEnum::END_PROCEDURE){
+                                        beginInt = beginInt + 1;
+                                        beginScope = beginScope - 1;
+                                    } else {
+                                        beginInt = beginInt + 1;
+                                    }
+                                }
+
+                                // println!("begin index: {}", beginInt);
+
+                                //Splits into two lists to parse seperately
+                                let mut bodyList = tokenList.split_off(beginInt);
+
+                                //Parses the header
+                                let newHeader: Vec<Token> = tokenList.iter().cloned().map(|t| t.clone()).collect();
+                                let scanned = self.parse(newHeader, 0);                            
+                                let mut headerStmt:Stmt;
+                                let mut headerReporting = Reporting::new();
+                                match scanned {
+                                    Ok((reporting, Some(stmt))) => {
+                                        println!("Header parsed successfully");
+                                        headerStmt = stmt;
+                                        headerReporting = reporting;
+                                    },
+                                    Ok((reporting, None)) => {
+                                        println!("Parsed header statement but no statement returned.");
+                                        headerReporting = reporting;
+                                        headerStmt = Stmt::StringLiteral("No header returned".to_string());
+                                    },
+                                    Err(reporting) => {
+                                        println!("Error parsing header: {:?}", reporting);
+                                        return Err(reporting); // Propagate the error up the call stack
+                                    },
+                                }
+
+                                // let newHeader: Vec<Token> = tokenList.iter().cloned().map(|t| t.clone()).collect();
+                                let scanned = self.parse(bodyList, 0);
+                                let mut bodyStmt:Stmt;
+                                let mut bodyReporting = Reporting::new();
+                                //Parses the header
+                                match scanned {
+                                    Ok((reporting, Some(stmt))) => {
+                                        println!("body parsed successfully");
+                                        bodyStmt = stmt;
+                                        bodyReporting = reporting;
+                                    },
+                                    Ok((reporting, None)) => {
+                                        println!("Parsed header statement but no statement returned.");
+                                        bodyReporting = reporting;
+                                        bodyStmt = Stmt::StringLiteral("No body returned".to_string());
+                                    },
+                                    Err(reporting) => {
+                                        println!("Error parsing body: {:?}", reporting);
+                                        return Err(reporting); // Propagate the error up the call stack
+                                    },
+                                }
+
+                                //Turns the statements into boxes
+                                let boxHeader: Box<Stmt> = Box::new(headerStmt);
+                                let boxBody: Box<Stmt> = Box::new(bodyStmt);
+
+
+                                println!("Finished parsing, creating program");
+                                let programAst = Stmt::Program(programName.clone(), boxHeader, boxBody);
+                                // programAst.display(0);
+
+                                return Ok((self.reports.clone(), Some(programAst)));
+
                             } else {
                                 self.reports.reportError("Program declaration incorrect. \n Program must start with: 'program [Program name] is'".to_string());
                                 return Err(self.reports.clone());
@@ -811,7 +892,7 @@ impl Parser{
                             return Err(self.reports.clone());
                         }
                     } else {
-                        // println!("PROGRAM but not the first one");
+                        println!("PROGRAM but not the first one");
                         i = i + 1;
                     }
                 }
@@ -1655,15 +1736,12 @@ impl Parser{
                 
                 
                 _ => {
-                    // return Ok((self.reports.clone(), Some(Stmt::StringLiteral("Unwritten".to_string()))));
-                    // println!("Unwritten");
                     i = i + 1;
                 }
             }
         }
         // // println!("No elements in this token list");
-        println!("Individual parse finished: ") ;
-        // Ok((self.reports.clone(), Some(Stmt::StringLiteral("ZERO ELEMENTS".to_string()))))
+        // println!("Individual parse finished: ") ;
         Ok((self.reports.clone(), Some(newBlock)))
     }
 
@@ -1828,7 +1906,7 @@ pub enum Stmt {
     // Procedure(String, VarType, Box<Stmt>),  //Procedure statement: Name of procedure, return type, statements 
     Error(Reporting),
     Return(Expr),
-    Program(String, Box<Stmt>), //The program AST: Name, the statements
+    Program(String, Box<Stmt>, Box<Stmt>), //The program AST: Name, the statements
 }
 
 
@@ -1871,8 +1949,14 @@ impl Stmt {
             },
             Stmt::Error(reporting) => println!("{}Error({:?})", indentation, reporting),
             Stmt::Return(expr) => println!("{}Return({})", indentation, expr),
-            Stmt::Program(name, expr) => println!("{}{}:({})", indentation,name, expr),
-
+            Stmt::Program(name, header, body) => {
+                println!("{}{}:(", indentation,name);
+                println!(" {}Header:",indentation);
+                header.display(indent + 1);
+                println!(" {}Body:",indentation);
+                body.display(indent + 1);
+                println!("{})", indent);
+            }
             
         }
     }
@@ -1893,6 +1977,12 @@ pub struct Program {
 
 ///////////////////////// /PARSER SECTION /////////////////////////
 
+fn printTokList(tokList: &Vec<Token>){
+    for token in tokList {
+        println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+    }
+}
+    
 
 
 

@@ -12,6 +12,11 @@ begin
 
 i:= 1110;
 
+if(val == 1) then
+    ret := 1;
+    ret := 3;
+end if;
+
 i := i / 1;
 
 //i := i + 1 * 5 / 6;

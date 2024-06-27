@@ -886,8 +886,8 @@ impl Parser{
                             }
                         }
 
-                        println!("Finished parsingheader: ");
-                        headerBlock.display(0);
+                        // println!("Finished parsing header: ");
+                        // headerBlock.display(0);
 
                         
 
@@ -934,18 +934,18 @@ impl Parser{
                             
                         }
 
-                        println!("Finished parsing body: ");
-                        bodyBlock.display(0);
+                        // println!("Finished parsing body: ");
+                        // bodyBlock.display(0);
 
-                        //Turns the statements into boxes
-                        // let boxHeader: Box<Stmt> = Box::new(headerStmt);
-                        // let boxBody: Box<Stmt> = Box::new(bodyStmt);
+                        // Turns the statements into boxes
+                        let boxHeader: Box<Stmt> = Box::new(headerBlock);
+                        let boxBody: Box<Stmt> = Box::new(bodyBlock);
 
 
-                        // let programAst = Stmt::Program(programName.clone(), boxHeader, boxBody);
+                        let programAst = Stmt::Program(programName.clone(), boxHeader, boxBody);
                         // programAst.display(0);
 
-                        // return Ok((self.reports.clone(), Some(programAst)));
+                        return Ok((Some(programAst)));
 
                     } else {
                         self.reports.reportError("Program declaration incorrect. \n Program must start with: 'program [Program name] is'".to_string());
@@ -1093,7 +1093,7 @@ impl Parser{
                 match curStmt[1].tt {
                     tokenTypeEnum::SET_EQUALS => {
                         let varName = &curStmt[0].tokenString;
-                        println!("command length: {}", &curStmt.len().to_string());
+                        // println!("command length: {}", &curStmt.len().to_string());
                         //Simple assign
                         if (curStmt.len() == 4) {
                             // println!("Simple set equals found");
@@ -1116,11 +1116,11 @@ impl Parser{
                             return Ok(Some(assignStmt));
                             
                         }  else if (curStmt.len() > 4) {
-                            println!("complex set equals");
+                            // println!("complex set equals");
     
                             let mut subList = tokenList.clone();
                             subList.drain(0..2); 
-                            println!("First token: {}", subList[0].tokenString);
+                            // println!("First token: {}", subList[0].tokenString);
                             let mut parsedExpr: Expr;
                             let scanned = self.parse(&mut subList);                            
                                 let mut headerStmt:Expr;
@@ -1152,7 +1152,7 @@ impl Parser{
                                         return Err(errMsg);
                                     },
                                 }
-                            println!("Expression parsed: {}", parsedExpr);
+                            // println!("Expression parsed: {}", parsedExpr);
                             let retStmt = Stmt::Assign(varName.to_string(), parsedExpr);
                             
                             // parsedStmt.display(0);
@@ -1168,10 +1168,11 @@ impl Parser{
                         } 
                     }
                     _ => {
-                        println!("Found an expression of type: {}", curStmt[1].tokenString);
-                        println!("Expressions length: {}", curStmt.len());
+                        // println!("Found an expression of type: {}", curStmt[1].tokenString);
+                        // println!("Expressions length: {}", curStmt.len());
                         if(curStmt.len() == 4) {
-                            println!("Simple expression");
+                            // println!("Simple expression");
+                            // println!("First token in simple expression: {}", curStmt[0].tokenString);
                             let operand1 = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
                             let mut op1Expr: Expr;
                             match operand1 {
@@ -1185,6 +1186,7 @@ impl Parser{
                                     return Err("Error with operand 1".to_string());
                                 }
                             }
+
                             
                             let operand2 = Expr::new(curStmt[2].tt.clone(), Some(curStmt[2].tokenString.clone()));
                             let mut op2Expr: Expr;
@@ -1199,6 +1201,7 @@ impl Parser{
                                     return Err("Error with operand 2".to_string());
                                 }
                             }
+
                         
                             let operator = BinOp::new(curStmt[1].tt.clone());
                             let mut opBin:BinOp; 
@@ -1213,7 +1216,7 @@ impl Parser{
                                     return Err("Error with operator".to_string());
                                 }
                             }
-                            
+
                             let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
 
                             let retStmt = Stmt::Expr(finalExpr);
@@ -1221,8 +1224,8 @@ impl Parser{
                             return Ok(Some(retStmt));
 
                         } else if (curStmt.len() > 4) {
-                            println!("Complex expressions");
-                            println!("First complex expression token: {}", curStmt[0].tokenString);
+                            // println!("Complex expressions");
+                            // println!("First complex expression token: {}", curStmt[0].tokenString);
 
                             //Parses the first operand
                             let operand1 = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
@@ -1315,280 +1318,277 @@ impl Parser{
                     }
                 }
             }
-            // tokenTypeEnum::IF => {
-            //     //Finds the end of the IF statement
-            //     let mut k = i + 1;
-            //     let mut nextTok = &tokenList[k];
-            //     // println!("\n\nFound an if");
-            //     let mut curStmt: Vec<&Token> = vec![];
+            tokenTypeEnum::IF => {
+                //Finds the end of the IF statement
+                let mut k = 0;
+                let mut nextTok = &tokenList[k];
+                // println!("\n\nFound an if");
+                let mut curStmt: Vec<Token> = vec![];
+                let mut ifInd = 0;
+                let ifLen = tokenList.len();
             
-            //     // Finds the end of the if
-            //     curStmt.push(token);
-            //     while nextTok.tt != tokenTypeEnum::END_IF {
-            //         curStmt.push(nextTok);
-            //         k = k + 1;
-            //         nextTok = &tokenList[k];
-            //     }
-            //     curStmt.push(nextTok);
+                // Finds the end of the if
+                // curStmt.push(token.clone());
+                while nextTok.tt != tokenTypeEnum::END_IF {
+                    if(ifInd > ifLen) {
+                        // println!("ERROR IN IF CONDITION");
+                        let errMsg = format!("For If on line {}, no end if found", token.lineNum);
+                        self.reports.reportError(errMsg);
+                        return Err("No end if".to_string());
+                    }
+                    curStmt.push(nextTok.clone());
+                    k = k + 1;
+                    ifInd = ifInd + 1;
+                    nextTok = &tokenList[k];
+                }
+                curStmt.push(nextTok.clone());
 
-            //     // Extract the condition if it exists
-            //     if curStmt[1].tt == tokenTypeEnum::L_PAREN {
-            //         let mut j = 1;
-            //         let mut nextTok = &curStmt[j];
-            //         let mut condStmt: Vec<&Token> = vec![];
+                let mut condInt;
+
+                let mut ifCondition: Expr;
+                // // Extract the condition if it exists
+                if curStmt[1].tt == tokenTypeEnum::L_PAREN {
+                    let mut j = 1;
+                    let mut nextTok = &curStmt[j];
+                    let mut condStmt: Vec<Token> = vec![];
                 
-            //         // Finds the end of the condition by findind the then
-            //         while nextTok.tt != tokenTypeEnum::THEN {
-            //             condStmt.push(nextTok);
-            //             j = j + 1;
-            //             nextTok = &curStmt[j];
-            //         }
+                    // Finds the end of the condition by findind the then
+                    while nextTok.tt != tokenTypeEnum::THEN {
+                        condStmt.push(nextTok.clone());
+                        j = j + 1;
+                        nextTok = &curStmt[j];
+                    }
+                    condInt = j;
 
-            //         // println!("J: {}", j.to_string());
-            //         // println!("k: {}", k.to_string());
-            //         // println!("i: {}", i.to_string());
-            //         // println!("newStart: {}", newstart.to_string());
-            //         // println!("newstart token: {}", &tokenList[i + j].tokenString);
-            //         // println!("Found the then");
+                    condStmt.drain(0..1);
 
-            //         //Parses the condition statement
-            //         let newTokList: Vec<Token> = condStmt.iter().cloned().map(|t| t.clone()).collect();
-            //         let scanned = self.parse(newTokList, 0);
+                    
 
-            //         let mut condition: Option<Stmt>;
-            //         match scanned {
-            //             Ok((reporting, Some(stmt))) => {
-            //                 // Add your logic to handle the parsed condition statement here
-            //                 // For example:
-            //                 // println("Good");
-            //                 condition = Some(stmt); // Assuming Stmt is the type of your condition
-            //                 // Add condition to your newBlock or handle it as needed
-            //             },
-            //             Ok((reporting, None)) => {
-            //                 println!("Parsed condition but no statement returned.");
-            //                 condition = None; // Assuming Stmt is the type of your condition
+                    // let scanned = self.parse(&mut condStmt);                            
+                    // let mut headerStmt:Stmt;
 
-            //                 self.reports.reportError(format!(
-            //                     "In line: {}, Error with condition", curStmt[0].lineNum
-            //                 ));
+                    let mut parsedExpr: Expr;
 
-            //             },
-            //             Err(reporting) => {
-            //                 println!("Error parsing condition: {:?}", reporting);
-            //                 println!("Parsed condition but no statement returned.");
-            //                 condition = None; // Assuming Stmt is the type of your condition
-            //                 self.reports.reportError(format!(
-            //                     "In line: {}, Error with condition", curStmt[0].lineNum
-            //                 ));
-            //             },
-            //         }
+                    // printTokList(&condStmt);
+                    let scanned = self.parse(&mut condStmt);                            
+                    let mut headerStmt:Expr;
 
-            //         if let Some(cond) = condition {
-            //             // println!("Condition: {:?}", cond);
-            //             // println!("curStmt[1]: {}", curStmt[1].tokenString);
-            //             let mut ifList: Vec<&Token> = curStmt[j + 1..].to_vec();
-            //             // println!("If list:");
-            //             let mut elseInd: usize = 0;
-            //             let mut holder = 0;
-            //             for token in &ifList {
-            //                 // println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-            //                 if(token.tt == tokenTypeEnum::ELSE){
-            //                     println!("Found else");
-            //                     elseInd = holder;
-            //                 }
-            //                 holder = holder + 1;
-            //             }
-
-            //             if elseInd != 0 {
-            //                 println!("elseInd: {}", elseInd.to_string());
-            //                 let (mut ifListSlice, mut elseListSlice) = ifList.split_at(elseInd);
-            //                 // ifList = ifList.copy();
-
-            //                 // Convert slices to vectors
-            //                 let mut ifList: Vec<&Token> = ifListSlice.to_vec();
-            //                 let mut elseList: Vec<&Token> = elseListSlice.to_vec();
-
-            //                 let Some(last) = elseList.pop() else { todo!() };
-            //                 if !elseList.is_empty() {
-            //                     elseList.remove(0);
-            //                 }
-
-            //                 //Parse the if list
-            //                 let newIfList: Vec<Token> = ifList.iter().cloned().map(|t| t.clone()).collect();
+                    // let mut headerReporting = Reporting::new();
+                    match scanned {
+                        Ok((Some(stmt))) => {
+                            let parsed = stmt.extractExpr();
+                            match parsed {
+                                Ok(expr) => {
+                                    parsedExpr = expr
+                                },
+                                Err(msg) => {
+                                    println!("Error parsing expression from if condition");
+                                    let errMsg = format!("Error parsing if condition: {:?}", self.reports);
+                                    parsedExpr = Expr::IntLiteral(0);
+                                }
+                            }
+                                        
                             
-            //                 // println!("newiflist:");
-            //                 // for token in &newIfList {
-            //                 //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-            //                 // }
-                            
-            //                 let scanIf = self.parse(newIfList, 0);
-            //                 let mut ifBlock: Option<Stmt>;
-            //                 match scanIf {
-            //                     Ok((reporting, Some(stmt))) => {
-            //                         // Add your logic to handle the parsed condition statement here
-            //                         // For example:
-            //                         // println!("Good if: {:?}", stmt);
-            //                         ifBlock = Some(stmt); // Assuming Stmt is the type of your condition
-            //                         // Add condition to your newBlock or handle it as needed
-            //                     },
-            //                     Ok((reporting, None)) => {
-            //                         println!("Parsed condition but no statement returned.");
-            //                         ifBlock = None; // Assuming Stmt is the type of your condition
+                        },
+                        Ok((None)) => {
+                            println!("Parsed if expression but no statement returned.");
+                            parsedExpr = Expr::IntLiteral(0);
+                        },
+                        Err(err) => {
+                            println!("Error parsing if condition: {:?}", err);
+                            let errMsg = format!("Error parsing if condition: {}", err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with if condition".to_string());
+                        },
+                    }
+                    // println!("Expression parsed: {}", parsedExpr);
+                    ifCondition = parsedExpr;
+                } else {
+                    println!("ERROR IN IF CONDITION");
+                    let errMsg = format!("Error in if statement on line: {},\nIf statement declarations must follow this format: if([condition]) then", token.lineNum);
+                    self.reports.reportError(errMsg);
+                    return Err("Error with if condition".to_string());
+                }
 
-            //                         self.reports.reportError(format!(
-            //                             "In line: {}, Error with condition", curStmt[0].lineNum
-            //                         ));
-
-            //                     },
-            //                     Err(reporting) => {
-            //                         println!("Error parsing condition: {:?}", reporting);
-            //                         println!("Parsed condition but no statement returned.");
-            //                         ifBlock = None; // Assuming Stmt is the type of your condition
-            //                         self.reports.reportError(format!(
-            //                             "In line: {}, Error with condition", curStmt[0].lineNum
-            //                         ));
-            //                     },
-            //                 }
-
-            //                 //Parse the else list
-            //                 let newElseList: Vec<Token> = elseList.iter().cloned().map(|t| t.clone()).collect();
-                            
-            //                 // println!("newelselist:");
-            //                 // for token in &newElseList {
-            //                 //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-            //                 // }
-                            
-            //                 let scanElse = self.parse(newElseList, 0);
-            //                 let mut elseBlock: Option<Stmt>;
-            //                 match scanElse {
-            //                     Ok((reporting, Some(stmt))) => {
-            //                         // Add your logic to handle the parsed condition statement here
-            //                         // For example:
-            //                         // println("Good");
-            //                         // println!("Good else: {:?}", stmt);
-
-            //                         elseBlock = Some(stmt); // Assuming Stmt is the type of your condition
-            //                         // Add condition to your newBlock or handle it as needed
-            //                     },
-            //                     Ok((reporting, None)) => {
-            //                         println!("Parsed condition but no statement returned.");
-            //                         elseBlock = None; // Assuming Stmt is the type of your condition
-
-            //                         self.reports.reportError(format!(
-            //                             "In line: {}, Error with condition", curStmt[0].lineNum
-            //                         ));
-
-            //                     },
-            //                     Err(reporting) => {
-            //                         println!("Error parsing condition: {:?}", reporting);
-            //                         println!("Parsed condition but no statement returned.");
-            //                         elseBlock = None; // Assuming Stmt is the type of your condition
-            //                         self.reports.reportError(format!(
-            //                             "In line: {}, Error with condition", curStmt[0].lineNum
-            //                         ));
-            //                     },
-            //                 }
-
-            //                 if let Some(ifCond) = ifBlock {
-            //                     if let Some(elseCond) = elseBlock {
-                                    
-            //                         let result = self.processBlock(&cond);
-
-            //                         if result.is_ok() {
-            //                             let expr = result.unwrap();
-
-            //                             // println!("Condition: {:?}", expr);
-            //                             // println!("if block: {:?}", ifCond);
-            //                             // println!("else block: {:?}", elseCond);
-            //                             let ifStmt = Stmt::If(expr, Box::new(ifCond), Some(Box::new(elseCond)));
-            //                             // println!("Here is the if statement: {:?}", ifStmt);
-            //                             let _ = newBlock.push_to_block(ifStmt);
+                // println!("\n\nIf Condition: {}", ifCondition);
 
 
-            //                         } else {
-            //                             println!("Failed to extract Expr in if: {}", result.unwrap_err());
-            //                         }
-                                    
-                                    
-            //                     } else {
-            //                         println!("error in else statment, need to write");
-            //                     }
-            //                 } else {
-            //                     println!("error in if statment, need to write");
-            //                 }
-            //             } else {
+                //Checks for an else statement
+                let mut elseInd: usize = 0;
+                let mut holder = 0;
+                curStmt.drain(0..condInt+1);
+                // println!("Curstmt before iteration:");
+                // printTokList(&curStmt);
+                for token in &curStmt {
+                    // println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+                    if(token.tt == tokenTypeEnum::ELSE){
+                        // println!("Found else");
+                        elseInd = holder;
+                    }
+                    holder = holder + 1;
+                }
 
-            //                 //Parse the if list
-            //                 let newIfList: Vec<Token> = ifList.iter().cloned().map(|t| t.clone()).collect();
-                            
-            //                 let scanIf = self.parse(newIfList, 0);
-            //                 let mut ifBlock: Option<Stmt>;
-            //                 match scanIf {
-            //                     Ok((reporting, Some(stmt))) => {
-            //                         // Add your logic to handle the parsed condition statement here
-            //                         // For example:
-            //                         // println!("Good if: {:?}", stmt);
-            //                         ifBlock = Some(stmt); // Assuming Stmt is the type of your condition
-            //                         // Add condition to your newBlock or handle it as needed
-            //                     },
-            //                     Ok((reporting, None)) => {
-            //                         println!("Parsed condition but no statement returned.");
-            //                         ifBlock = None; // Assuming Stmt is the type of your condition
+                if elseInd != 0 {
+                    // println!("Else found");
+                    //Splits into two lists to parse seperately
+                    let mut ifList = curStmt.clone();
+                    ifList.drain(elseInd..);
+                    
 
-            //                         self.reports.reportError(format!(
-            //                             "In line: {}, Error with condition", curStmt[0].lineNum
-            //                         ));
+                    //Parses the header
+                    let mut newIf: Vec<Token> = ifList.iter().cloned().map(|t| t.clone()).collect();
+                    let mut ifBlock = Stmt::Block(Vec::new());
+                    let mut ifI = 0;
+                    let ifLen = newIf.len();
+                    // println!("newIf len {}", ifLen.to_string());
+                    while(!newIf.is_empty()){
+                        if(ifI > ifLen){
+                            self.reports.reportError("Infinite loop in if statement".to_string());
+                            println!("infinite loop in if");
+                            return Err("infinite loop in if".to_string());
+                        }
+                        ifI = ifI + 1;
+                        let scanned = self.parse(&mut newIf);                            
+                        let mut ifStmt:Stmt;
+                        // let mut headerReporting = Reporting::new();
+                        match scanned {
+                            Ok((Some(stmt))) => {
+                                // println!("Header statement parsed successfully");
+                                // stmt.display(0);
+                                let _ = ifBlock.push_to_block(stmt.clone());
+                                // let _ = headerStmt = stmt;
+                                // headerReporting = reporting;
+                            },
+                            Ok((None)) => {
+                                println!("Parsed if statement but no statement returned.");
+                                // headerReporting = reporting;
+                                // headerStmt = Stmt::StringLiteral("No header returned".to_string());
+                            },
+                            Err(reporting) => {
+                                println!("Error parsing if: {:?}", reporting);
+                                let errMsg = format!("Error parsing if: {:?}", self.reports);
+                                return Err(errMsg);
+                                // return Err(("Error parsing header: {:?}", reporting).to_string()); // Propagate the error up the call stack
+                            },
+                        }
+                    }
 
-            //                     },
-            //                     Err(reporting) => {
-            //                         println!("Error parsing condition: {:?}", reporting);
-            //                         println!("Parsed condition but no statement returned.");
-            //                         ifBlock = None; // Assuming Stmt is the type of your condition
-            //                         self.reports.reportError(format!(
-            //                             "In line: {}, Error with condition", curStmt[0].lineNum
-            //                         ));
-            //                     },
-            //                 }
+                    // println!("Finished parsing if: ");
+                    // ifBlock.display(0);
 
-                            
+                    
+                    //Parses the else block
+                    let mut elseList = curStmt.split_off(elseInd);                    
+                    let mut newElse: Vec<Token> = elseList.iter().cloned().map(|t| t.clone()).collect();
+                    newElse.drain(0..1);
+                    newElse.drain(newElse.len() - 1..);
+                    // println!("First in else: {}", newElse[0].tokenString);
+                    let mut elseBlock = Stmt::Block(Vec::new());
+                    let mut elseI = 0;
+                    let elseLen = newElse.len();
+                    while(!newElse.is_empty()){
+                        if(elseI > elseLen){
+                            self.reports.reportError("Infinite loop in else".to_string());
+                            println!("infinite loop in else");
+                            return Err("infinite loop in else".to_string());
+                        }
+                        let scanned = self.parse(&mut newElse);                            
+                        let mut elseStmt:Stmt;
+                        // let mut headerReporting = Reporting::new();
+                        match scanned {
+                            Ok((Some(stmt))) => {
+                                // println!("Header statement parsed successfully");
+                                // stmt.display(0);
+                                let _ = elseBlock.push_to_block(stmt.clone());
+                                elseI = elseI + 1;
+                                // let _ = headerStmt = stmt;
+                                // headerReporting = reporting;
+                            },
+                            Ok((None)) => {
+                                println!("Parsed else statement but no statement returned.");
+                                elseI = elseI + 1;
 
-            //                 if let Some(ifCond) = ifBlock {
-                                    
-            //                     let result = self.processBlock(&cond);
+                                // headerReporting = reporting;
+                                // headerStmt = Stmt::StringLiteral("No header returned".to_string());
+                            },
+                            Err(reporting) => {
+                                println!("Error parsing else: {:?}", reporting);
+                                let errMsg = format!("Error parsing else: {:?}", self.reports);
+                                // bodyI = bodyI + 1;
 
-            //                     if result.is_ok() {
-            //                         let expr = result.unwrap();
+                                return Err(errMsg);
+                                // return Err(("Error parsing header: {:?}", reporting).to_string()); // Propagate the error up the call stack
+                            },
+                        }
+                        
+                    }
 
-            //                         let ifStmt = Stmt::If(expr, Box::new(ifCond), None);
-            //                         // println!("Here is the if statement: {:?}", ifStmt);
-            //                         let _ = newBlock.push_to_block(ifStmt);
+                    // println!("Finished parsing else: ");
+                    // elseBlock.display(0);
 
+                    //Converts the blocks to boxes
+                    let ifBox = Box::new(ifBlock);
+                    let elseBox = Box::new(elseBlock);
 
-            //                     } else {
-            //                         println!("Failed to extract Expr in if: {}", result.unwrap_err());
-            //                     }
-                                    
-                                    
-            //                 } else {
-            //                     println!("error in if statment, need to write");
-            //                 }
-            //             }
+                    //Finishes up and returns
+                    let retStmt = Stmt::If(ifCondition, ifBox, Some(elseBox));
+                    tokenList.drain(0..k+2);
+                    return Ok(Some(retStmt));
+                } else {
+                    // println!("Else not found");
+                    let mut ifList = curStmt.clone();
+                    ifList.drain(ifList.len() - 1..);                    
 
-            //         }
+                    //Parses the header
+                    let mut newIf: Vec<Token> = ifList.iter().cloned().map(|t| t.clone()).collect();
+                    let mut ifBlock = Stmt::Block(Vec::new());
+                    let mut ifI = 0;
+                    let ifLen = newIf.len();
+                    // println!("newIf len {}", ifLen.to_string());
+                    while(!newIf.is_empty()){
+                        if(ifI > ifLen){
+                            self.reports.reportError("Infinite loop in if statement".to_string());
+                            println!("infinite loop in if");
+                            return Err("infinite loop in if".to_string());
+                        }
+                        ifI = ifI + 1;
+                        let scanned = self.parse(&mut newIf);                            
+                        let mut ifStmt:Stmt;
+                        // let mut headerReporting = Reporting::new();
+                        match scanned {
+                            Ok((Some(stmt))) => {
+                                // println!("Header statement parsed successfully");
+                                // stmt.display(0);
+                                let _ = ifBlock.push_to_block(stmt.clone());
+                                // let _ = headerStmt = stmt;
+                                // headerReporting = reporting;
+                            },
+                            Ok((None)) => {
+                                println!("Parsed if statement but no statement returned.");
+                                // headerReporting = reporting;
+                                // headerStmt = Stmt::StringLiteral("No header returned".to_string());
+                            },
+                            Err(reporting) => {
+                                println!("Error parsing if: {:?}", reporting);
+                                let errMsg = format!("Error parsing if: {:?}", self.reports);
+                                return Err(errMsg);
+                                // return Err(("Error parsing header: {:?}", reporting).to_string()); // Propagate the error up the call stack
+                            },
+                        }
+                    }
 
-            //         //Moves the token list past the if statement
-            //         let i = k;
-            //         // println!("newStart: {}", newstart.to_string());
-            //         // println!("newstart token: {}", &tokenList[newstart].tokenString);
+                    // println!("Finished parsing if: ");
+                    // ifBlock.display(0);
 
-            //     } else {
-            //         println!("ERROR IN IF CONDITION, need to write");
-            //     }
-            
+                    //Converts the blocks to boxes
+                    let ifBox = Box::new(ifBlock);
 
-            //     // println!("K: {}", tokenList[k].tokenString);
-            //     i = k + 1; // Move to the next token after the END_IF
-            // }
+                    //Finishes up and returns
+                    let retStmt = Stmt::If(ifCondition, ifBox, None);
+                    tokenList.drain(0..k+2);
+                    return Ok(Some(retStmt));
+                }
+            }
             // tokenTypeEnum::L_PAREN => {
             //     let mut k = i + 1; // Start from the token right after '('
             //     // println!("\nFound a (");
@@ -2322,14 +2322,12 @@ impl Parser{
             _ => {
                 // i = i + 1;
                 // return(Ok());
+                println!("Unaccounted token");
+                tokenList.drain(0..1);
                 return Ok((None));
 
             }
         }
-        // }
-        // // println!("No elements in this token list");
-        // println!("Individual parse finished: ") ;
-        return Ok(None);
     }
 
     //Prints all of the tokens

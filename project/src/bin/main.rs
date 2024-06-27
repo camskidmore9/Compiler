@@ -735,7 +735,30 @@ impl Parser{
     fn startParse(&mut self) -> Result<(Reporting, Option<Stmt>), Reporting> {
         println!("Starting master parse");
         let mut tokList = self.tokenList.clone();
-        return self.parse(tokList, 0);
+        let parsed = self.parse(&mut tokList);
+
+        match parsed {
+            Ok((Some(stmt))) => {
+                println!("program parsed successfully");
+                // stmt.display(0);
+                // headerBlock.push_to_block(stmt.clone());
+                // headerStmt = stmt;
+                return Ok((self.reports.clone(), Some(stmt)));
+                // headerReporting = reporting;
+            },
+            Ok((None)) => {
+                println!("program parsed but no statement returned.");
+                return Ok((self.reports.clone(), None));
+                // headerReporting = reporting;
+                // headerStmt = Stmt::StringLiteral("No header returned".to_string());
+            },
+            Err(reporting) => {
+                // println!("Error parsing header: {:?}", reporting);
+                let errMsg = format!("Error parsing program: {:?}", self.reports);
+                return Err(self.reports.clone()); // Propagate the error up the call stack
+            },
+        }
+
     }
 
     fn processBlock(&mut self, block: &Stmt) -> Result<Expr, String> {
@@ -771,978 +794,1034 @@ impl Parser{
     }
     
 
-    fn parse(&mut self, mut tokenList: Vec<Token>, mut scope: i32) -> Result<(Reporting, Option<Stmt>), Reporting> {
+    fn parse(&mut self, tokenList: &mut Vec<Token>) -> Result<Option<Stmt>, String> {
         // let mut tokenList = &mut self.tokenList;
-        let mut newBlock = Stmt::Block(Vec::new());
 
         // println!("Beginning individual parse");
             
-        let mut i: usize = 0;
+        // let mut i: usize = 0;
         let tokLen: usize = tokenList.len();
         // Iterate through tokenList using an index
         
-        while i < tokLen {
-            //Gets next token
-            let token = &tokenList[i];
-            // println!("current i: {} on token: {}", i.to_string(), token.tokenString);
+        // while i < tokLen {
+        //     //Gets next token
+        //     let token = &tokenList[i];
+        //     // println!("current i: {} on token: {}", i.to_string(), token.tokenString);
 
+        let mut token = &tokenList[0];
             
-            match token.tt {
-                tokenTypeEnum::PROGRAM => {
-                    //If program is just starting, check it.
-                    if scope == 0{
-                        //Checks the first line
-                        let firstToken = &tokenList[0];
-                        if let tokenTypeEnum::PROGRAM = firstToken.tt {
-                            let thirdToken = &tokenList[2];
-                            if let tokenTypeEnum::IS = thirdToken.tt {
-                                //Gets the program name
-                                let programName: String = tokenList[1].tokenString.clone();                                
-                                
-                                //Removes the program statement
-                                tokenList.drain(0..3);
-
-                                //Finds where the header ends and the body begins
-                                let mut beginInt = 0;
-                                let mut beginScope = 0;
-                                for token in &tokenList{
-                                    // println!("Current token: {}", token.tokenString);
-                                    if (token.tt == tokenTypeEnum::BEGIN) && (beginScope == 0){
-                                        // println!("Found the end");
-                                        break;
-                                    } else if (token.tt == tokenTypeEnum::PROCEDURE) {
-                                        beginScope = beginScope + 1;
-                                        beginInt = beginInt + 1;
-                                    } else if (token.tt == tokenTypeEnum::END_PROCEDURE){
-                                        beginInt = beginInt + 1;
-                                        beginScope = beginScope - 1;
-                                    } else {
-                                        beginInt = beginInt + 1;
-                                    }
-                                }
-
-                                // println!("begin index: {}", beginInt);
-
-                                //Splits into two lists to parse seperately
-                                let mut bodyList = tokenList.split_off(beginInt);
-
-                                //Parses the header
-                                let newHeader: Vec<Token> = tokenList.iter().cloned().map(|t| t.clone()).collect();
-                                let scanned = self.parse(newHeader, 0);                            
-                                let mut headerStmt:Stmt;
-                                let mut headerReporting = Reporting::new();
-                                match scanned {
-                                    Ok((reporting, Some(stmt))) => {
-                                        println!("Header parsed successfully");
-                                        headerStmt = stmt;
-                                        headerReporting = reporting;
-                                    },
-                                    Ok((reporting, None)) => {
-                                        println!("Parsed header statement but no statement returned.");
-                                        headerReporting = reporting;
-                                        headerStmt = Stmt::StringLiteral("No header returned".to_string());
-                                    },
-                                    Err(reporting) => {
-                                        println!("Error parsing header: {:?}", reporting);
-                                        return Err(reporting); // Propagate the error up the call stack
-                                    },
-                                }
-
-                                // let newHeader: Vec<Token> = tokenList.iter().cloned().map(|t| t.clone()).collect();
-                                let scanned = self.parse(bodyList, 0);
-                                let mut bodyStmt:Stmt;
-                                let mut bodyReporting = Reporting::new();
-                                //Parses the header
-                                match scanned {
-                                    Ok((reporting, Some(stmt))) => {
-                                        println!("body parsed successfully");
-                                        bodyStmt = stmt;
-                                        bodyReporting = reporting;
-                                    },
-                                    Ok((reporting, None)) => {
-                                        println!("Parsed header statement but no statement returned.");
-                                        bodyReporting = reporting;
-                                        bodyStmt = Stmt::StringLiteral("No body returned".to_string());
-                                    },
-                                    Err(reporting) => {
-                                        println!("Error parsing body: {:?}", reporting);
-                                        return Err(reporting); // Propagate the error up the call stack
-                                    },
-                                }
-
-                                //Turns the statements into boxes
-                                let boxHeader: Box<Stmt> = Box::new(headerStmt);
-                                let boxBody: Box<Stmt> = Box::new(bodyStmt);
-
-
-                                println!("Finished parsing, creating program");
-                                let programAst = Stmt::Program(programName.clone(), boxHeader, boxBody);
-                                // programAst.display(0);
-
-                                return Ok((self.reports.clone(), Some(programAst)));
-
-                            } else {
-                                self.reports.reportError("Program declaration incorrect. \n Program must start with: 'program [Program name] is'".to_string());
-                                return Err(self.reports.clone());
-                            }
-                            scope = 1;
-                            i = 3;
-                        } else {
-                            self.reports.reportError("Program declaration incorrect. \n Program must start with: 'program [Program name] is'".to_string());
-                            return Err(self.reports.clone());
-                        }
-                    } else {
-                        println!("PROGRAM but not the first one");
-                        i = i + 1;
-                    }
-                }
-                tokenTypeEnum::VARIABLE => {
-                    let mut k = i + 1;
-                    let mut nextTok = &tokenList[k];
-                    // println!("Found a variable token");
-                    let mut curStmt: Vec<&Token> = vec![];
-                    curStmt.push(token);
-                    while nextTok.tt != tokenTypeEnum::SEMICOLON {
-                        curStmt.push(nextTok);
-                        k = k + 1;
-                        nextTok = &tokenList[k];
-
-                        // println!("iterating");
-                    }
-                    curStmt.push(nextTok);
-                    // println!("Found the semicolon");
-                    let varName = &curStmt[1].tokenString;
-                    // println!("\nCurrent variable declaration name: {}", varName);
-                    
-                    // for token in &curStmt {
-                    //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                    // }
-
-                    //Error checking
-                    if curStmt[2].tt != tokenTypeEnum::COLON {
-                        // println!("{}", curStmt[2].tokenString);
-                        self.reports.reportError(format!(
-                            "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : [variable type]'", 
-                            curStmt[3].lineNum, 
-                        ));
-                        return Err(self.reports.clone());
-                    } else {
-                        if (curStmt[4].tt != tokenTypeEnum::SEMICOLON) {
-                            if curStmt[4].tt != tokenTypeEnum::L_BRACKET {
-                                self.reports.reportError(format!(
-                                    "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : integer[arraySize]'", 
-                                    curStmt[3].lineNum, 
-                                ));
-                                return Err(self.reports.clone());
-                            } else {
-                                if curStmt[3].tokenString == "integer" {
-                                    if curStmt[5].tt == tokenTypeEnum::INT {
-                                        let arSizeStr = curStmt[5].tokenString.clone();
-                                        if let Ok(arSize) = arSizeStr.parse::<usize>() {
-                                            let newVar = Stmt::VarDecl(varName.clone(), VarType::IntArray(vec![0; arSize]));
-                                            let _ = newBlock.push_to_block(newVar);
-                                        } else {
-                                            self.reports.reportError(format!(
-                                                "In line: {}, Invlaid array size", 
-                                                curStmt[3].lineNum, 
-                                            ));
-                                            return Err(self.reports.clone());
-                                        }
-                                    } else {
-                                        self.reports.reportError(format!(
-                                            "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : integer[arraySize]'", 
-                                            curStmt[3].lineNum, 
-                                        ));
-                                        return Err(self.reports.clone());
-                                    }
-                                } else {
-                                    self.reports.reportError(format!(
-                                        "In line: {}, '{}' is not a valid variable type", 
-                                        curStmt[3].lineNum, 
-                                        curStmt[3].tokenString
-                                    ));
-                                    return Err(self.reports.clone());
-                                }
-                            }
-                        } else if curStmt[3].tokenString == "string" {
-                            let newVar = Stmt::VarDecl(varName.clone(), VarType::Str("".to_string()));
-                            let _ = newBlock.push_to_block(newVar);
-                        } else if curStmt[3].tokenString == "integer" {
-                            let newVar = Stmt::VarDecl(varName.clone(), VarType::Int(0));
-                            let _ = newBlock.push_to_block(newVar);
-                        }  else if curStmt[3].tokenString == "bool" {
-                            let newVar = Stmt::VarDecl(varName.clone(), VarType::Bool(false));
-                            let _ = newBlock.push_to_block(newVar);
-                        }  else if curStmt[3].tokenString == "float" {
-                            let newVar = Stmt::VarDecl(varName.clone(), VarType::Float(0.0));
-                            let _ = newBlock.push_to_block(newVar);
-                        }
-                    }
-
-                    // let newVar = Stmt::VarDecl(varName, );
-                    
-                    k = k + 1;
-                    i = k;
-                    // println!("Variable initialized");
-                    
-
-                    
-                }
-                tokenTypeEnum::BEGIN => {
-                    let mut k = i + 1;
-                    let mut nextTok = &tokenList[k];
-                    // println!("\nFound a program begin");
-                    let mut curStmt: Vec<Token> = vec![];
-                    curStmt.push(token.clone());
-                    while (nextTok.tt != tokenTypeEnum::END_PROGRAM) && (nextTok.tt != tokenTypeEnum::END_PROCEDURE) {
-                        curStmt.push(nextTok.clone());
-                        k = k + 1;
-                        nextTok = &tokenList[k];
-                    }
-                    curStmt.push(nextTok.clone());
-                    // println!("Found the end program");
-                    
-                    curStmt.remove(0);
-                
-                    // for token in &curStmt {
-                    //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                    // }
-                
-                    // let progBlock = ;
-                    let subLen = curStmt.len().clone();
-
-                    match self.parse(curStmt, scope.clone()) {
-                        Ok((reporting, Some(stmt))) => {
-                            // println!("\n\nParsing succeeded.");
-                            // println!("Reporting: {:?}", reporting);
-                            // println!("Parsed Statement: {:?}", stmt);
-                            // println!("Returned block: {}", stmt);
-
-                            let _ = newBlock.push_to_block(stmt);
-
-                            // Continue with normal flow
-                        }
-                        Ok((reporting, None)) => {
-                            // println!("\n\nParsing succeeded, but no statement was returned.");
-                            // println!("Reporting: {:?}", reporting);
-                            // Continue with normal flow
-                        }
-                        Err(reporting) => {
-                            // eprintln!("\n\nParsing failed.");
-                            // eprintln!("Reporting: {:?}", reporting);
-                            // Handle the error gracefully, log, recover, etc.
-                        }
-                    }
-
-
-
-                    
-                    i = i + subLen;
-                }
-                tokenTypeEnum::IDENTIFIER => {
-                    let mut k = i + 1;
-                    let mut nextTok = &tokenList[k];
-                    // println!("Found an identifier");
-                    let mut curStmt: Vec<&Token> = vec![];
-                    curStmt.push(token);
-                    while k < tokenList.len() {
-                        let nextTok = &tokenList[k];
-                        curStmt.push(nextTok);
-                    
-                        if (nextTok.tt == tokenTypeEnum::SEMICOLON) || (nextTok.tt == tokenTypeEnum::R_PAREN) {
-                            break; // Stop loop when semicolon is found
-                        }
-                    
-                        k += 1;
-                    }
-                    // curStmt.push(nextTok);
-                    // println!("Found the semicolon");
-
-                    // println!("{}", curStmt[1].tokenString);
-                    if(curStmt[1].tt == tokenTypeEnum::SET_EQUALS) {
-                        let varName = &curStmt[0].tokenString;
-                        println!("command length: {}", &curStmt.len().to_string());
-                        if (curStmt.len() < 3) {
-                            println!("\n\nSimple set equals found");
-                            if(curStmt[2].tt == tokenTypeEnum::INT){
-                                let newExpr = Expr::IntLiteral(curStmt[2].tokenString.parse().unwrap());
-                                let newVar = Stmt::Assign(varName.clone(), newExpr);
-                                let _ = newBlock.push_to_block(newVar);
-                            } else if(curStmt[2].tt == tokenTypeEnum::STRING){
-                                let strValue = &curStmt[2].tokenString;
-                                let newExpr = Expr::StringLiteral(strValue.clone());
-                                let newVar = Stmt::Assign(varName.clone(), newExpr);
-                                let _ = newBlock.push_to_block(newVar);
-                            }
-                        } else {
-                            // println!("{}", curStmt[1].tt);
-                            println!("Fuck you {}", curStmt.len().to_string());
-                            println!("curStmt:");
-                            for token in &curStmt {
-                                println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                            }
-                        }
+        match token.tt {
+            tokenTypeEnum::PROGRAM => {
+                //If program is just starting, check it.
+                //Checks the first line
+                let firstToken = &tokenList[0];
+                if let tokenTypeEnum::PROGRAM = firstToken.tt {
+                    let thirdToken = &tokenList[2];
+                    if let tokenTypeEnum::IS = thirdToken.tt {
+                        //Gets the program name
+                        let programName: String = tokenList[1].tokenString.clone();                                
                         
-                    } else {
-                        // println!("Found a greater, first token: {}", curStmt[0].tt);
-                        // Assuming curStmt[0].tt.to_string() is a &str
-                        let varRefExpr = Expr::new("VarRef", None, Some(&curStmt[0].tokenString), None, None)?;
-                        let first = Box::new(varRefExpr);
+                        //Removes the program statement
+                        tokenList.drain(0..3);
 
-                        let opStr = curStmt[1].tt.to_string();
-                        
-                        // println!("HERE IS THIS: {}", curStmt[0].tokenString);
-                        // println!("HERE IS THIS: {}", curStmt[1].tokenString);
-                        // println!("HERE IS THIS: {}", curStmt[2].tokenString);
-
-                        // println!("ON LINE: {}", curStmt[1].lineNum);
-                        let op = BinOp::new(&opStr)?;
-
-                        // Assuming curStmt[3].tokenString is a &str and needs to be converted to i64
-                        // println!("Operand here: {}", curStmt[2].tokenString);
-                        let intLiteralExpr = Expr::new("IntLiteral", Some(&curStmt[2].tokenString), None, None, None)?;
-                        let second = Box::new(intLiteralExpr);
-
-                        let newExpr = Expr::BinOp(first, op, second);
-                        let newStmt = Stmt::Expr(newExpr);
-
-                        let _ = newBlock.push_to_block(newStmt);
-                    }
-
-                    // for token in &curStmt {
-                    //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                    // }
-
-                    i = i + 1;
-                }
-                tokenTypeEnum::IF => {
-                    //Finds the end of the IF statement
-                    let mut k = i + 1;
-                    let mut nextTok = &tokenList[k];
-                    // println!("\n\nFound an if");
-                    let mut curStmt: Vec<&Token> = vec![];
-                
-                    // Finds the end of the if
-                    curStmt.push(token);
-                    while nextTok.tt != tokenTypeEnum::END_IF {
-                        curStmt.push(nextTok);
-                        k = k + 1;
-                        nextTok = &tokenList[k];
-                    }
-                    curStmt.push(nextTok);
-
-                    // Extract the condition if it exists
-                    if curStmt[1].tt == tokenTypeEnum::L_PAREN {
-                        let mut j = 1;
-                        let mut nextTok = &curStmt[j];
-                        let mut condStmt: Vec<&Token> = vec![];
-                    
-                        // Finds the end of the condition by findind the then
-                        while nextTok.tt != tokenTypeEnum::THEN {
-                            condStmt.push(nextTok);
-                            j = j + 1;
-                            nextTok = &curStmt[j];
-                        }
-
-                        // println!("J: {}", j.to_string());
-                        // println!("k: {}", k.to_string());
-                        // println!("i: {}", i.to_string());
-                        // println!("newStart: {}", newstart.to_string());
-                        // println!("newstart token: {}", &tokenList[i + j].tokenString);
-                        // println!("Found the then");
-
-                        //Parses the condition statement
-                        let newTokList: Vec<Token> = condStmt.iter().cloned().map(|t| t.clone()).collect();
-                        let scanned = self.parse(newTokList, 0);
-
-                        let mut condition: Option<Stmt>;
-                        match scanned {
-                            Ok((reporting, Some(stmt))) => {
-                                // Add your logic to handle the parsed condition statement here
-                                // For example:
-                                // println("Good");
-                                condition = Some(stmt); // Assuming Stmt is the type of your condition
-                                // Add condition to your newBlock or handle it as needed
-                            },
-                            Ok((reporting, None)) => {
-                                println!("Parsed condition but no statement returned.");
-                                condition = None; // Assuming Stmt is the type of your condition
-
-                                self.reports.reportError(format!(
-                                    "In line: {}, Error with condition", curStmt[0].lineNum
-                                ));
-
-                            },
-                            Err(reporting) => {
-                                println!("Error parsing condition: {:?}", reporting);
-                                println!("Parsed condition but no statement returned.");
-                                condition = None; // Assuming Stmt is the type of your condition
-                                self.reports.reportError(format!(
-                                    "In line: {}, Error with condition", curStmt[0].lineNum
-                                ));
-                            },
-                        }
-
-                        if let Some(cond) = condition {
-                            // println!("Condition: {:?}", cond);
-                            // println!("curStmt[1]: {}", curStmt[1].tokenString);
-                            let mut ifList: Vec<&Token> = curStmt[j + 1..].to_vec();
-                            // println!("If list:");
-                            let mut elseInd: usize = 0;
-                            let mut holder = 0;
-                            for token in &ifList {
-                                // println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                                if(token.tt == tokenTypeEnum::ELSE){
-                                    println!("Found else");
-                                    elseInd = holder;
-                                }
-                                holder = holder + 1;
-                            }
-
-                            if elseInd != 0 {
-                                println!("elseInd: {}", elseInd.to_string());
-                                let (mut ifListSlice, mut elseListSlice) = ifList.split_at(elseInd);
-                                // ifList = ifList.copy();
-
-                                // Convert slices to vectors
-                                let mut ifList: Vec<&Token> = ifListSlice.to_vec();
-                                let mut elseList: Vec<&Token> = elseListSlice.to_vec();
-
-                                let Some(last) = elseList.pop() else { todo!() };
-                                if !elseList.is_empty() {
-                                    elseList.remove(0);
-                                }
-
-                                //Parse the if list
-                                let newIfList: Vec<Token> = ifList.iter().cloned().map(|t| t.clone()).collect();
-                                
-                                // println!("newiflist:");
-                                // for token in &newIfList {
-                                //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                                // }
-                                
-                                let scanIf = self.parse(newIfList, 0);
-                                let mut ifBlock: Option<Stmt>;
-                                match scanIf {
-                                    Ok((reporting, Some(stmt))) => {
-                                        // Add your logic to handle the parsed condition statement here
-                                        // For example:
-                                        // println!("Good if: {:?}", stmt);
-                                        ifBlock = Some(stmt); // Assuming Stmt is the type of your condition
-                                        // Add condition to your newBlock or handle it as needed
-                                    },
-                                    Ok((reporting, None)) => {
-                                        println!("Parsed condition but no statement returned.");
-                                        ifBlock = None; // Assuming Stmt is the type of your condition
-
-                                        self.reports.reportError(format!(
-                                            "In line: {}, Error with condition", curStmt[0].lineNum
-                                        ));
-
-                                    },
-                                    Err(reporting) => {
-                                        println!("Error parsing condition: {:?}", reporting);
-                                        println!("Parsed condition but no statement returned.");
-                                        ifBlock = None; // Assuming Stmt is the type of your condition
-                                        self.reports.reportError(format!(
-                                            "In line: {}, Error with condition", curStmt[0].lineNum
-                                        ));
-                                    },
-                                }
-
-                                //Parse the else list
-                                let newElseList: Vec<Token> = elseList.iter().cloned().map(|t| t.clone()).collect();
-                                
-                                // println!("newelselist:");
-                                // for token in &newElseList {
-                                //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                                // }
-                                
-                                let scanElse = self.parse(newElseList, 0);
-                                let mut elseBlock: Option<Stmt>;
-                                match scanElse {
-                                    Ok((reporting, Some(stmt))) => {
-                                        // Add your logic to handle the parsed condition statement here
-                                        // For example:
-                                        // println("Good");
-                                        // println!("Good else: {:?}", stmt);
-
-                                        elseBlock = Some(stmt); // Assuming Stmt is the type of your condition
-                                        // Add condition to your newBlock or handle it as needed
-                                    },
-                                    Ok((reporting, None)) => {
-                                        println!("Parsed condition but no statement returned.");
-                                        elseBlock = None; // Assuming Stmt is the type of your condition
-
-                                        self.reports.reportError(format!(
-                                            "In line: {}, Error with condition", curStmt[0].lineNum
-                                        ));
-
-                                    },
-                                    Err(reporting) => {
-                                        println!("Error parsing condition: {:?}", reporting);
-                                        println!("Parsed condition but no statement returned.");
-                                        elseBlock = None; // Assuming Stmt is the type of your condition
-                                        self.reports.reportError(format!(
-                                            "In line: {}, Error with condition", curStmt[0].lineNum
-                                        ));
-                                    },
-                                }
-
-                                if let Some(ifCond) = ifBlock {
-                                    if let Some(elseCond) = elseBlock {
-                                        
-                                        let result = self.processBlock(&cond);
-
-                                        if result.is_ok() {
-                                            let expr = result.unwrap();
-
-                                            // println!("Condition: {:?}", expr);
-                                            // println!("if block: {:?}", ifCond);
-                                            // println!("else block: {:?}", elseCond);
-                                            let ifStmt = Stmt::If(expr, Box::new(ifCond), Some(Box::new(elseCond)));
-                                            // println!("Here is the if statement: {:?}", ifStmt);
-                                            let _ = newBlock.push_to_block(ifStmt);
-
-
-                                        } else {
-                                            println!("Failed to extract Expr in if: {}", result.unwrap_err());
-                                        }
-                                        
-                                        
-                                    } else {
-                                        println!("error in else statment, need to write");
-                                    }
-                                } else {
-                                    println!("error in if statment, need to write");
-                                }
-                            } else {
-
-                                //Parse the if list
-                                let newIfList: Vec<Token> = ifList.iter().cloned().map(|t| t.clone()).collect();
-                                
-                                let scanIf = self.parse(newIfList, 0);
-                                let mut ifBlock: Option<Stmt>;
-                                match scanIf {
-                                    Ok((reporting, Some(stmt))) => {
-                                        // Add your logic to handle the parsed condition statement here
-                                        // For example:
-                                        // println!("Good if: {:?}", stmt);
-                                        ifBlock = Some(stmt); // Assuming Stmt is the type of your condition
-                                        // Add condition to your newBlock or handle it as needed
-                                    },
-                                    Ok((reporting, None)) => {
-                                        println!("Parsed condition but no statement returned.");
-                                        ifBlock = None; // Assuming Stmt is the type of your condition
-
-                                        self.reports.reportError(format!(
-                                            "In line: {}, Error with condition", curStmt[0].lineNum
-                                        ));
-
-                                    },
-                                    Err(reporting) => {
-                                        println!("Error parsing condition: {:?}", reporting);
-                                        println!("Parsed condition but no statement returned.");
-                                        ifBlock = None; // Assuming Stmt is the type of your condition
-                                        self.reports.reportError(format!(
-                                            "In line: {}, Error with condition", curStmt[0].lineNum
-                                        ));
-                                    },
-                                }
-
-                                
-
-                                if let Some(ifCond) = ifBlock {
-                                        
-                                    let result = self.processBlock(&cond);
-
-                                    if result.is_ok() {
-                                        let expr = result.unwrap();
-
-                                        let ifStmt = Stmt::If(expr, Box::new(ifCond), None);
-                                        // println!("Here is the if statement: {:?}", ifStmt);
-                                        let _ = newBlock.push_to_block(ifStmt);
-
-
-                                    } else {
-                                        println!("Failed to extract Expr in if: {}", result.unwrap_err());
-                                    }
-                                        
-                                     
-                                } else {
-                                    println!("error in if statment, need to write");
-                                }
-                            }
-
-                        }
-
-                        //Moves the token list past the if statement
-                        let i = k;
-                        // println!("newStart: {}", newstart.to_string());
-                        // println!("newstart token: {}", &tokenList[newstart].tokenString);
-
-                    } else {
-                        println!("ERROR IN IF CONDITION, need to write");
-                    }
-                
-
-                    // println!("K: {}", tokenList[k].tokenString);
-                    i = k + 1; // Move to the next token after the END_IF
-                }
-                tokenTypeEnum::L_PAREN => {
-                    let mut k = i + 1; // Start from the token right after '('
-                    // println!("\nFound a (");
-                    let mut curStmt: Vec<&Token> = vec![];
-                    let mut depth = 1; // Track nested parentheses depth
-                
-                    while k < tokenList.len() {
-                        let nextTok = &tokenList[k];
-                        // println!("Current token: {}", nextTok.tokenString);
-                
-                        if nextTok.tt == tokenTypeEnum::L_PAREN {
-                            // println!("Sub statement found");
-                            depth += 1;
-                        } else if nextTok.tt == tokenTypeEnum::R_PAREN {
-                            // println!("Closing bracket found");
-                            depth -= 1;
-                
-                            if depth == 0 {
-                                // End of the nested parentheses block
-                                curStmt.push(nextTok);
+                        //Finds where the header ends and the body begins
+                        let mut beginInt = 0;
+                        let mut beginScope = 0;
+                        let iterTokList = tokenList.clone();
+                        for token in iterTokList{
+                            // println!("Current token: {}", token.tokenString);
+                            if (token.tt == tokenTypeEnum::BEGIN) && (beginScope == 0){
+                                // println!("Found the end");
                                 break;
-                            }
-                        }
-                
-                        curStmt.push(nextTok);
-                        k += 1;
-                    }
-
-                    let newTokList: Vec<Token> = curStmt.iter().cloned().map(|t| t.clone()).collect();
-                    let scanned = self.parse(newTokList, 0);
-                
-                    match scanned {
-                        Ok((reporting, Some(stmt))) => {
-                            // println!("Parsed nested statement: {:?}", stmt);
-                            // Push the parsed statement into newBlock
-                            let result = self.processBlock(&stmt);
-
-                            if result.is_ok() {
-                                let expr = result.unwrap();
-                                // println!("Extracted Expr: {:?}", expr);
-
-                                let exprStmt = Stmt::Expr(expr);
-
-                                // println!("testStmt: {}", testStmt);
-                                let _ = newBlock.push_to_block(exprStmt);
-
+                            } else if (token.tt == tokenTypeEnum::PROCEDURE) {
+                                beginScope = beginScope + 1;
+                                beginInt = beginInt + 1;
+                            } else if (token.tt == tokenTypeEnum::END_PROCEDURE){
+                                beginInt = beginInt + 1;
+                                beginScope = beginScope - 1;
                             } else {
-                                println!("Failed to extract Expr in l_paren: {}", result.unwrap_err());
-                            }
-
-                            
-                        },
-                        Ok((reporting, None)) => {
-                            println!("Parsed nested statement but no statement returned.");
-                            // Handle the case where no statement is returned (if needed)
-                        },
-                        Err(reporting) => {
-                            println!("Error parsing nested statement: {:?}", reporting);
-                            return Err(reporting); // Propagate the error up the call stack
-                        },
-                    }
-                
-                    i = k + 1; // Move index past the ')' token
-                }
-                tokenTypeEnum::PROCEDURE => {
-                    //Finds the end of the procedure statement
-                    let mut k = i + 1;
-                    let mut nextTok = &tokenList[k];
-                    println!("\n\nFound a procedure");
-                    let mut curStmt: Vec<&Token> = vec![];
-                
-                    // Finds the end of the if
-                    curStmt.push(token);
-                    while nextTok.tt != tokenTypeEnum::END_PROCEDURE {
-                        curStmt.push(nextTok);
-                        k = k + 1;
-                        nextTok = &tokenList[k];
-                    }
-                    curStmt.push(nextTok);
-
-                    let procId = &curStmt[1].tokenString;
-                    let procType = VarType::new(&curStmt[3].tokenString);
-
-                    println!("\n\nFound the end of a procedure");
-
-                    //Gets the procedure type
-                    match procType {
-                        Ok(varType) => {
-                            println!("Procedure type: {:?}", varType);
-                            println!("Procedure id: {}", procId);
-
-                        }
-                        Err(err) => println!("Error determining procedure type: {}", err),
-                    }
-
-                    let mut paramList = Stmt::Block(Vec::new());
-                    
-                    let mut j = 5;
-                    //Finds the end of the parameters
-                    if(curStmt[4].tt != tokenTypeEnum::L_PAREN){
-                        println!("Not parentheses: {}", &curStmt[4].tt);
-                    } else {
-                        //Finds the end of the procedure statement
-                        let mut nextTok = &curStmt[j];
-                        // println!("\n\nFound a procedure");
-                        let mut paramTokens: Vec<&Token> = vec![];
-                        let decLine = curStmt[4].lineNum.clone();
-                        // Finds the end of the if
-                        // curStmt.push(token);
-                        while nextTok.tt != tokenTypeEnum::R_PAREN  {
-                            if(nextTok.lineNum != decLine){
-                                println!("No right parent, make error");
-                            } else {
-                                paramTokens.push(nextTok);
-                                j = j + 1;
-                                nextTok = &curStmt[j];
+                                beginInt = beginInt + 1;
                             }
                         }
 
-                        // println!("Found all parameters:");
-                        // for token in &paramTokens {
-                        //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                        // }
+                        // println!("begin index: {}", beginInt);
 
+                        //Splits into two lists to parse seperately
+                        let mut bodyList = tokenList.split_off(beginInt);
 
-
-                        let mut curParam: Vec<&Token> = vec![];
-                        for token in &paramTokens {
-                            if(token.tt == tokenTypeEnum::COMMA) {
-                                //Parse the parameter
-                                let tokenString: String = ";".to_string();
-                                let semicolon = Token::new(crate::tokenTypeEnum::SEMICOLON,tokenString, decLine.to_string());
-                                curParam.push(&semicolon);
-                                let newCurParam: Vec<Token> = curParam.iter().cloned().map(|t| t.clone()).collect();
-                                let scanParam = self.parse(newCurParam, 0);
-                                let mut paramBlock: Option<Stmt>;
-                                match scanParam {
-                                    Ok((reporting, Some(stmt))) => {
-                                        // Add your logic to handle the parsed condition statement here
-                                        // For example:
-                                        // println!("Good if: {:?}", stmt);
-                                        paramBlock = Some(stmt); // Assuming Stmt is the type of your condition
-                                        // Add condition to your newBlock or handle it as needed
-                                    },
-                                    Ok((reporting, None)) => {
-                                        println!("Parsed parameter but no statement returned.");
-                                        paramBlock = None; // Assuming Stmt is the type of your condition
-
-                                        self.reports.reportError(format!(
-                                            "In line: {}, Error with parameter", curStmt[0].lineNum
-                                        ));
-
-                                    },
-                                    Err(reporting) => {
-                                        println!("Error parsing condition: {:?}", reporting);
-                                        println!("Parsed condition but no statement returned.");
-                                        paramBlock = None; // Assuming Stmt is the type of your condition
-                                        self.reports.reportError(format!(
-                                            "In line: {}, Error with condition", curStmt[0].lineNum
-                                        ));
-                                    },
-                                }
-                                if let Some(param) = paramBlock {
-                                        
-                                    let result = self.processBlockStmt(&param);
-
-                                    if result.is_ok() {
-                                        let param = result.unwrap();
-
-                                        // let paramStmt = Stmt::If(expr, Box::new(ifCond), None);
-                                        // println!("Here is the if parameter: {:?}", param);
-                                        let _ = paramList.push_to_block(param);
-                                        // let _ = newBlock.push_to_block(ifStmt);
-
-
-                                    } else {
-                                        println!("Failed to extract Expr in param: {}", result.unwrap_err());
-                                    }
-                                        
-                                     
-                                } else {
-                                    println!("error in if statment, need to write");
-                                }
-                                curParam = vec![];
-                            } else {
-                                curParam.push(token);
+                        //Parses the header
+                        let mut newHeader: Vec<Token> = tokenList.iter().cloned().map(|t| t.clone()).collect();
+                        let mut headerBlock = Stmt::Block(Vec::new());
+                        let mut headerI = 0;
+                        let headerLen = newHeader.len();
+                        while(!newHeader.is_empty()){
+                            if(headerI > headerLen){
+                                self.reports.reportError("Infinite loop in header".to_string());
+                                println!("infinite loop in header");
+                                return Err("infinite loop in header".to_string());
                             }
-                        }
-                        if((paramTokens.len().clone() as i32) != 0){
-                            let tokenString: String = ";".to_string();
-                            let semicolon = Token::new(crate::tokenTypeEnum::SEMICOLON,tokenString, decLine.to_string());
-                            curParam.push(&semicolon);
-                            let newCurParam: Vec<Token> = curParam.iter().cloned().map(|t| t.clone()).collect();
-                            let scanParam = self.parse(newCurParam, 0);
-                            let mut paramBlock: Option<Stmt>;
-                            match scanParam {
-                                Ok((reporting, Some(stmt))) => {
-                                    // Add your logic to handle the parsed condition statement here
-                                    // For example:
-                                    // println!("Good if: {:?}", stmt);
-                                    paramBlock = Some(stmt); // Assuming Stmt is the type of your condition
-                                    // Add condition to your newBlock or handle it as needed
+                            let scanned = self.parse(&mut newHeader);                            
+                            let mut headerStmt:Stmt;
+                            // let mut headerReporting = Reporting::new();
+                            match scanned {
+                                Ok((Some(stmt))) => {
+                                    // println!("Header statement parsed successfully");
+                                    // stmt.display(0);
+                                    let _ = headerBlock.push_to_block(stmt.clone());
+                                    // let _ = headerStmt = stmt;
+                                    // headerReporting = reporting;
                                 },
-                                Ok((reporting, None)) => {
-                                    println!("Parsed parameter but no statement returned.");
-                                    paramBlock = None; // Assuming Stmt is the type of your condition
-
-                                    self.reports.reportError(format!(
-                                        "In line: {}, Error with parameter", curStmt[0].lineNum
-                                    ));
-
+                                Ok((None)) => {
+                                    println!("Parsed header statement but no statement returned.");
+                                    // headerReporting = reporting;
+                                    // headerStmt = Stmt::StringLiteral("No header returned".to_string());
                                 },
                                 Err(reporting) => {
-                                    println!("Error parsing condition: {:?}", reporting);
-                                    println!("Parsed condition but no statement returned.");
-                                    paramBlock = None; // Assuming Stmt is the type of your condition
-                                    self.reports.reportError(format!(
-                                        "In line: {}, Error with condition", curStmt[0].lineNum
-                                    ));
+                                    println!("Error parsing header: {:?}", reporting);
+                                    let errMsg = format!("Error parsing header: {:?}", self.reports);
+                                    return Err(errMsg);
+                                    // return Err(("Error parsing header: {:?}", reporting).to_string()); // Propagate the error up the call stack
                                 },
                             }
-                            if let Some(param) = paramBlock {
-                                    
-                                let result = self.processBlockStmt(&param);
+                        }
 
-                                if result.is_ok() {
-                                    let param = result.unwrap();
+                        println!("Finished parsingheader: ");
+                        headerBlock.display(0);
 
-                                    // let paramStmt = Stmt::If(expr, Box::new(ifCond), None);
-                                    // println!("Here is the if parameter: {:?}", param);
-                                    let _ = paramList.push_to_block(param);
-                                    // let _ = newBlock.push_to_block(ifStmt);
+                        
+
+                        let mut newBody: Vec<Token> = bodyList.iter().cloned().map(|t| t.clone()).collect();
+                        let mut bodyBlock = Stmt::Block(Vec::new());
+                        let mut bodyI = 0;
+                        let bodyLen = newBody.len();
+                        while(!newBody.is_empty()){
+                            if(bodyI > bodyLen){
+                                self.reports.reportError("Infinite loop in body".to_string());
+                                println!("infinite loop in body");
+                                return Err("infinite loop in body".to_string());
+                            }
+                            let scanned = self.parse(&mut newBody);                            
+                            let mut headerStmt:Stmt;
+                            // let mut headerReporting = Reporting::new();
+                            match scanned {
+                                Ok((Some(stmt))) => {
+                                    // println!("Header statement parsed successfully");
+                                    // stmt.display(0);
+                                    let _ = bodyBlock.push_to_block(stmt.clone());
+                                    bodyI = bodyI + 1;
+                                    // let _ = headerStmt = stmt;
+                                    // headerReporting = reporting;
+                                },
+                                Ok((None)) => {
+                                    println!("Parsed body statement but no statement returned.");
+                                    bodyI = bodyI + 1;
+
+                                    // headerReporting = reporting;
+                                    // headerStmt = Stmt::StringLiteral("No header returned".to_string());
+                                },
+                                Err(reporting) => {
+                                    println!("Error parsing body: {:?}", reporting);
+                                    let errMsg = format!("Error parsing body: {:?}", self.reports);
+                                    // bodyI = bodyI + 1;
+
+                                    return Err(errMsg);
+                                    // return Err(("Error parsing header: {:?}", reporting).to_string()); // Propagate the error up the call stack
+                                },
+                            }
+                            
+                        }
+
+                        println!("Finished parsing body: ");
+                        bodyBlock.display(0);
+
+                        //Turns the statements into boxes
+                        // let boxHeader: Box<Stmt> = Box::new(headerStmt);
+                        // let boxBody: Box<Stmt> = Box::new(bodyStmt);
 
 
+                        // let programAst = Stmt::Program(programName.clone(), boxHeader, boxBody);
+                        // programAst.display(0);
+
+                        // return Ok((self.reports.clone(), Some(programAst)));
+
+                    } else {
+                        self.reports.reportError("Program declaration incorrect. \n Program must start with: 'program [Program name] is'".to_string());
+                        println!("Error with program delcaration");
+                        return Err("Error with program declaration".to_string());
+                    }
+                    // scope = 1;
+                    // i = 3;
+                } else {
+                    self.reports.reportError("Program declaration incorrect. \n Program must start with: 'program [Program name] is'".to_string());
+                    println!("Error with program delcaration");
+                    return Err("Error with program declaration".to_string());
+                }
+                
+            }
+            tokenTypeEnum::VARIABLE => {
+                let mut retStmt:Stmt;
+                
+                let mut k = 1;
+                let mut nextTok = &tokenList[k];
+                // println!("Found a variable token");
+                let mut curStmt: Vec<&Token> = vec![];
+                curStmt.push(token);
+                while nextTok.tt != tokenTypeEnum::SEMICOLON {
+                    curStmt.push(nextTok);
+                    k = k + 1;
+                    nextTok = &tokenList[k];
+
+                    // println!("iterating");
+                }
+                curStmt.push(nextTok);
+                // println!("Found the semicolon");
+                let varName = &curStmt[1].tokenString;
+                // println!("\nCurrent variable declaration name: {}", varName);
+                
+                // for token in &curStmt {
+                //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+                // }
+
+                //Error checking
+                if curStmt[2].tt != tokenTypeEnum::COLON {
+                    // println!("{}", curStmt[2].tokenString);
+                    self.reports.reportError(format!(
+                        "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : [variable type]'", 
+                        curStmt[3].lineNum, 
+                    ));
+                    return Err("Error with variable declaration".to_string());
+                } else {
+                    if (curStmt[4].tt != tokenTypeEnum::SEMICOLON) {
+                        if curStmt[4].tt != tokenTypeEnum::L_BRACKET {
+                            self.reports.reportError(format!(
+                                "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : integer[arraySize]'", 
+                                curStmt[3].lineNum, 
+                            ));
+                            return Err("Error with variable declaration".to_string());
+                        } else {
+                            if curStmt[3].tokenString == "integer" {
+                                if curStmt[5].tt == tokenTypeEnum::INT {
+                                    let arSizeStr = curStmt[5].tokenString.clone();
+                                    if let Ok(arSize) = arSizeStr.parse::<usize>() {
+                                        let newVar = Stmt::VarDecl(varName.clone(), VarType::IntArray(vec![0; arSize]));
+                                        retStmt = newVar;
+                                    } else {
+                                        self.reports.reportError(format!(
+                                            "In line: {}, Invlaid array size", 
+                                            curStmt[3].lineNum, 
+                                        ));
+                                        return Err("Error with variable declaration".to_string());
+                                    }
                                 } else {
-                                    println!("Failed to extract Expr in param: {}", result.unwrap_err());
+                                    self.reports.reportError(format!(
+                                        "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : integer[arraySize]'", 
+                                        curStmt[3].lineNum, 
+                                    ));
+                                    return Err("Error with variable declaration".to_string());
                                 }
-                                    
-                                    
                             } else {
-                                println!("error in if statment, need to write");
+                                self.reports.reportError(format!(
+                                    "In line: {}, '{}' is not a valid variable type", 
+                                    curStmt[3].lineNum, 
+                                    curStmt[3].tokenString
+                                ));
+                                return Err("Error with variable declaration".to_string());
                             }
                         }
-                    }
+                    } else if curStmt[3].tokenString == "string" {
+                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Str("".to_string()));
+                        retStmt = newVar;
+                    } else if curStmt[3].tokenString == "integer" {
+                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Int(0));
+                        retStmt = newVar;
 
+                    }  else if curStmt[3].tokenString == "bool" {
+                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Bool(false));
+                        retStmt = newVar;
 
-                    // println!("Procedure tokens: ");
-                    // for token in &curStmt {
-                    //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                    // }
-
-                    println!("Params: ");
-                    paramList.display(0);
-
-                    println!("Next token: {}", &curStmt[j+2].tokenString);
-
-                    curStmt.drain(0..j+1);
-
-                    // println!("remaining Procedure tokens: ");
-                    // for token in &curStmt {
-                    //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                    // }
-
-                    let newCurParam: Vec<Token> = curStmt.iter().cloned().map(|t| t.clone()).collect();
-                    
-                    // println!("new curStmt: ");
-                    // for token in &newCurParam {
-                    //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-                    // }
-                    
-                    
-                    let scanParam = self.parse(newCurParam, 0);
-                    let mut paramBlock: Option<Stmt>;
-                    match scanParam {
-                        Ok((reporting, Some(stmt))) => {
-                            // Add your logic to handle the parsed condition statement here
-                            // For example:
-                            // println!("Good if: {:?}", stmt);
-                            paramBlock = Some(stmt); // Assuming Stmt is the type of your condition
-                            // Add condition to your newBlock or handle it as needed
-                        },
-                        Ok((reporting, None)) => {
-                            println!("Parsed procedure but no statement returned.");
-                            paramBlock = None; // Assuming Stmt is the type of your condition
-
-                            self.reports.reportError(format!(
-                                "In line: {}, Error with procedure", curStmt[0].lineNum
-                            ));
-
-                        },
-                        Err(reporting) => {
-                            println!("Error parsing procedure: {:?}", reporting);
-                            println!("Parsed procedure but no statement returned.");
-                            paramBlock = None; // Assuming Stmt is the type of your condition
-                            self.reports.reportError(format!(
-                                "In line: {}, Error with procedure", curStmt[0].lineNum
-                            ));
-                        },
-                    }
-                    if let Some(param) = paramBlock {
-                            
-                        let result = self.processBlockStmt(&param);
-
-                        if result.is_ok() {
-                            let param = result.unwrap();
-
-                            // let paramStmt = Stmt::If(expr, Box::new(ifCond), None);
-                            println!("Here is the procedure: {:?}", param);
-                            // let _ = paramList.push_to_block(param);
-                            // let _ = newBlock.push_to_block(ifStmt);
-
-
-                        } else {
-                            println!("Failed to extract Expr in procedure: {}", result.unwrap_err());
-                        }
-                            
-                            
+                    }  else if curStmt[3].tokenString == "float" {
+                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Float(0.0));
+                        retStmt = newVar;
                     } else {
-                        println!("error in procedure, need to write");
-                    }
-
-
-
-
-                
-
-                    // println!("K: {}", tokenList[k].tokenString);
-                    i = k + 1; // Move to the next token after the END_IF
-                }
-                tokenTypeEnum::RETURN => {
-                    if tokenList[i+1].tt != tokenTypeEnum::SEMICOLON {
-                        let retValue = Expr::VarRef(tokenList[i+1].tokenString.clone());
-                        let retStmt = Stmt::Return(retValue);
-                        let _ = newBlock.push_to_block(retStmt);
-                        i = i + 3;
-                    } else {
-                        let retValue = Expr::VarRef("".to_string());
-                        let retStmt = Stmt::Return(retValue);
-                        let _ = newBlock.push_to_block(retStmt);
-                        i = i + 2;
+                        self.reports.reportError(format!(
+                            "In line: {}, '{}' is not a valid variable type", 
+                            curStmt[3].lineNum, 
+                            curStmt[3].tokenString
+                        ));
+                        return Err("Error with variable declaration".to_string());
                     }
                 }
+
+                // let newVar = Stmt::VarDecl(varName, );
+                
+                k = k + 1;
+                // i = k;
+
+                tokenList.drain(0..k);
+                return Ok(Some(retStmt));
+                // println!("Variable initialized");
+                
+
+                
+            }
+            // tokenTypeEnum::BEGIN => {
+            //     let mut k = i + 1;
+            //     let mut nextTok = &tokenList[k];
+            //     // println!("\nFound a program begin");
+            //     let mut curStmt: Vec<Token> = vec![];
+            //     curStmt.push(token.clone());
+            //     while (nextTok.tt != tokenTypeEnum::END_PROGRAM) && (nextTok.tt != tokenTypeEnum::END_PROCEDURE) {
+            //         curStmt.push(nextTok.clone());
+            //         k = k + 1;
+            //         nextTok = &tokenList[k];
+            //     }
+            //     curStmt.push(nextTok.clone());
+            //     // println!("Found the end program");
+                
+            //     curStmt.remove(0);
+            
+            //     // for token in &curStmt {
+            //     //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //     // }
+            
+            //     // let progBlock = ;
+            //     let subLen = curStmt.len().clone();
+
+            //     match self.parse(curStmt, scope.clone()) {
+            //         Ok((reporting, Some(stmt))) => {
+            //             // println!("\n\nParsing succeeded.");
+            //             // println!("Reporting: {:?}", reporting);
+            //             // println!("Parsed Statement: {:?}", stmt);
+            //             // println!("Returned block: {}", stmt);
+
+            //             let _ = newBlock.push_to_block(stmt);
+
+            //             // Continue with normal flow
+            //         }
+            //         Ok((reporting, None)) => {
+            //             // println!("\n\nParsing succeeded, but no statement was returned.");
+            //             // println!("Reporting: {:?}", reporting);
+            //             // Continue with normal flow
+            //         }
+            //         Err(reporting) => {
+            //             // eprintln!("\n\nParsing failed.");
+            //             // eprintln!("Reporting: {:?}", reporting);
+            //             // Handle the error gracefully, log, recover, etc.
+            //         }
+            //     }
+
+
+
+                
+            //     i = i + subLen;
+            // }
+            // tokenTypeEnum::IDENTIFIER => {
+            //     let mut k = i + 1;
+            //     let mut nextTok = &tokenList[k];
+            //     // println!("Found an identifier");
+            //     let mut curStmt: Vec<&Token> = vec![];
+            //     curStmt.push(token);
+            //     while k < tokenList.len() {
+            //         let nextTok = &tokenList[k];
+            //         curStmt.push(nextTok);
+                
+            //         if (nextTok.tt == tokenTypeEnum::SEMICOLON) || (nextTok.tt == tokenTypeEnum::R_PAREN) {
+            //             break; // Stop loop when semicolon is found
+            //         }
+                
+            //         k += 1;
+            //     }
+            //     // curStmt.push(nextTok);
+            //     // println!("Found the semicolon");
+
+            //     // println!("{}", curStmt[1].tokenString);
+            //     if(curStmt[1].tt == tokenTypeEnum::SET_EQUALS) {
+            //         let varName = &curStmt[0].tokenString;
+            //         println!("command length: {}", &curStmt.len().to_string());
+            //         if (curStmt.len() < 3) {
+            //             println!("\n\nSimple set equals found");
+            //             if(curStmt[2].tt == tokenTypeEnum::INT){
+            //                 let newExpr = Expr::IntLiteral(curStmt[2].tokenString.parse().unwrap());
+            //                 let newVar = Stmt::Assign(varName.clone(), newExpr);
+            //                 let _ = newBlock.push_to_block(newVar);
+            //             } else if(curStmt[2].tt == tokenTypeEnum::STRING){
+            //                 let strValue = &curStmt[2].tokenString;
+            //                 let newExpr = Expr::StringLiteral(strValue.clone());
+            //                 let newVar = Stmt::Assign(varName.clone(), newExpr);
+            //                 let _ = newBlock.push_to_block(newVar);
+            //             }
+            //         } else {
+            //             // println!("{}", curStmt[1].tt);
+            //             println!("Fuck you");
+            //             // println!("curStmt:");
+            //             // for token in &curStmt {
+            //             //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //             // }
+            //         }
+                    
+            //     } else {
+            //         // println!("Found a greater, first token: {}", curStmt[0].tt);
+            //         // Assuming curStmt[0].tt.to_string() is a &str
+            //         let varRefExpr = Expr::new("VarRef", None, Some(&curStmt[0].tokenString), None, None)?;
+            //         let first = Box::new(varRefExpr);
+
+            //         let opStr = curStmt[1].tt.to_string();
+                    
+            //         // println!("HERE IS THIS: {}", curStmt[0].tokenString);
+            //         // println!("HERE IS THIS: {}", curStmt[1].tokenString);
+            //         // println!("HERE IS THIS: {}", curStmt[2].tokenString);
+
+            //         // println!("ON LINE: {}", curStmt[1].lineNum);
+            //         let op = BinOp::new(&opStr)?;
+
+            //         // Assuming curStmt[3].tokenString is a &str and needs to be converted to i64
+            //         // println!("Operand here: {}", curStmt[2].tokenString);
+            //         let intLiteralExpr = Expr::new("IntLiteral", Some(&curStmt[2].tokenString), None, None, None)?;
+            //         let second = Box::new(intLiteralExpr);
+
+            //         let newExpr = Expr::BinOp(first, op, second);
+            //         let newStmt = Stmt::Expr(newExpr);
+
+            //         let _ = newBlock.push_to_block(newStmt);
+            //     }
+
+            //     // for token in &curStmt {
+            //     //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //     // }
+
+            //     i = i + 1;
+            // }
+            // tokenTypeEnum::IF => {
+            //     //Finds the end of the IF statement
+            //     let mut k = i + 1;
+            //     let mut nextTok = &tokenList[k];
+            //     // println!("\n\nFound an if");
+            //     let mut curStmt: Vec<&Token> = vec![];
+            
+            //     // Finds the end of the if
+            //     curStmt.push(token);
+            //     while nextTok.tt != tokenTypeEnum::END_IF {
+            //         curStmt.push(nextTok);
+            //         k = k + 1;
+            //         nextTok = &tokenList[k];
+            //     }
+            //     curStmt.push(nextTok);
+
+            //     // Extract the condition if it exists
+            //     if curStmt[1].tt == tokenTypeEnum::L_PAREN {
+            //         let mut j = 1;
+            //         let mut nextTok = &curStmt[j];
+            //         let mut condStmt: Vec<&Token> = vec![];
+                
+            //         // Finds the end of the condition by findind the then
+            //         while nextTok.tt != tokenTypeEnum::THEN {
+            //             condStmt.push(nextTok);
+            //             j = j + 1;
+            //             nextTok = &curStmt[j];
+            //         }
+
+            //         // println!("J: {}", j.to_string());
+            //         // println!("k: {}", k.to_string());
+            //         // println!("i: {}", i.to_string());
+            //         // println!("newStart: {}", newstart.to_string());
+            //         // println!("newstart token: {}", &tokenList[i + j].tokenString);
+            //         // println!("Found the then");
+
+            //         //Parses the condition statement
+            //         let newTokList: Vec<Token> = condStmt.iter().cloned().map(|t| t.clone()).collect();
+            //         let scanned = self.parse(newTokList, 0);
+
+            //         let mut condition: Option<Stmt>;
+            //         match scanned {
+            //             Ok((reporting, Some(stmt))) => {
+            //                 // Add your logic to handle the parsed condition statement here
+            //                 // For example:
+            //                 // println("Good");
+            //                 condition = Some(stmt); // Assuming Stmt is the type of your condition
+            //                 // Add condition to your newBlock or handle it as needed
+            //             },
+            //             Ok((reporting, None)) => {
+            //                 println!("Parsed condition but no statement returned.");
+            //                 condition = None; // Assuming Stmt is the type of your condition
+
+            //                 self.reports.reportError(format!(
+            //                     "In line: {}, Error with condition", curStmt[0].lineNum
+            //                 ));
+
+            //             },
+            //             Err(reporting) => {
+            //                 println!("Error parsing condition: {:?}", reporting);
+            //                 println!("Parsed condition but no statement returned.");
+            //                 condition = None; // Assuming Stmt is the type of your condition
+            //                 self.reports.reportError(format!(
+            //                     "In line: {}, Error with condition", curStmt[0].lineNum
+            //                 ));
+            //             },
+            //         }
+
+            //         if let Some(cond) = condition {
+            //             // println!("Condition: {:?}", cond);
+            //             // println!("curStmt[1]: {}", curStmt[1].tokenString);
+            //             let mut ifList: Vec<&Token> = curStmt[j + 1..].to_vec();
+            //             // println!("If list:");
+            //             let mut elseInd: usize = 0;
+            //             let mut holder = 0;
+            //             for token in &ifList {
+            //                 // println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //                 if(token.tt == tokenTypeEnum::ELSE){
+            //                     println!("Found else");
+            //                     elseInd = holder;
+            //                 }
+            //                 holder = holder + 1;
+            //             }
+
+            //             if elseInd != 0 {
+            //                 println!("elseInd: {}", elseInd.to_string());
+            //                 let (mut ifListSlice, mut elseListSlice) = ifList.split_at(elseInd);
+            //                 // ifList = ifList.copy();
+
+            //                 // Convert slices to vectors
+            //                 let mut ifList: Vec<&Token> = ifListSlice.to_vec();
+            //                 let mut elseList: Vec<&Token> = elseListSlice.to_vec();
+
+            //                 let Some(last) = elseList.pop() else { todo!() };
+            //                 if !elseList.is_empty() {
+            //                     elseList.remove(0);
+            //                 }
+
+            //                 //Parse the if list
+            //                 let newIfList: Vec<Token> = ifList.iter().cloned().map(|t| t.clone()).collect();
+                            
+            //                 // println!("newiflist:");
+            //                 // for token in &newIfList {
+            //                 //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //                 // }
+                            
+            //                 let scanIf = self.parse(newIfList, 0);
+            //                 let mut ifBlock: Option<Stmt>;
+            //                 match scanIf {
+            //                     Ok((reporting, Some(stmt))) => {
+            //                         // Add your logic to handle the parsed condition statement here
+            //                         // For example:
+            //                         // println!("Good if: {:?}", stmt);
+            //                         ifBlock = Some(stmt); // Assuming Stmt is the type of your condition
+            //                         // Add condition to your newBlock or handle it as needed
+            //                     },
+            //                     Ok((reporting, None)) => {
+            //                         println!("Parsed condition but no statement returned.");
+            //                         ifBlock = None; // Assuming Stmt is the type of your condition
+
+            //                         self.reports.reportError(format!(
+            //                             "In line: {}, Error with condition", curStmt[0].lineNum
+            //                         ));
+
+            //                     },
+            //                     Err(reporting) => {
+            //                         println!("Error parsing condition: {:?}", reporting);
+            //                         println!("Parsed condition but no statement returned.");
+            //                         ifBlock = None; // Assuming Stmt is the type of your condition
+            //                         self.reports.reportError(format!(
+            //                             "In line: {}, Error with condition", curStmt[0].lineNum
+            //                         ));
+            //                     },
+            //                 }
+
+            //                 //Parse the else list
+            //                 let newElseList: Vec<Token> = elseList.iter().cloned().map(|t| t.clone()).collect();
+                            
+            //                 // println!("newelselist:");
+            //                 // for token in &newElseList {
+            //                 //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //                 // }
+                            
+            //                 let scanElse = self.parse(newElseList, 0);
+            //                 let mut elseBlock: Option<Stmt>;
+            //                 match scanElse {
+            //                     Ok((reporting, Some(stmt))) => {
+            //                         // Add your logic to handle the parsed condition statement here
+            //                         // For example:
+            //                         // println("Good");
+            //                         // println!("Good else: {:?}", stmt);
+
+            //                         elseBlock = Some(stmt); // Assuming Stmt is the type of your condition
+            //                         // Add condition to your newBlock or handle it as needed
+            //                     },
+            //                     Ok((reporting, None)) => {
+            //                         println!("Parsed condition but no statement returned.");
+            //                         elseBlock = None; // Assuming Stmt is the type of your condition
+
+            //                         self.reports.reportError(format!(
+            //                             "In line: {}, Error with condition", curStmt[0].lineNum
+            //                         ));
+
+            //                     },
+            //                     Err(reporting) => {
+            //                         println!("Error parsing condition: {:?}", reporting);
+            //                         println!("Parsed condition but no statement returned.");
+            //                         elseBlock = None; // Assuming Stmt is the type of your condition
+            //                         self.reports.reportError(format!(
+            //                             "In line: {}, Error with condition", curStmt[0].lineNum
+            //                         ));
+            //                     },
+            //                 }
+
+            //                 if let Some(ifCond) = ifBlock {
+            //                     if let Some(elseCond) = elseBlock {
+                                    
+            //                         let result = self.processBlock(&cond);
+
+            //                         if result.is_ok() {
+            //                             let expr = result.unwrap();
+
+            //                             // println!("Condition: {:?}", expr);
+            //                             // println!("if block: {:?}", ifCond);
+            //                             // println!("else block: {:?}", elseCond);
+            //                             let ifStmt = Stmt::If(expr, Box::new(ifCond), Some(Box::new(elseCond)));
+            //                             // println!("Here is the if statement: {:?}", ifStmt);
+            //                             let _ = newBlock.push_to_block(ifStmt);
+
+
+            //                         } else {
+            //                             println!("Failed to extract Expr in if: {}", result.unwrap_err());
+            //                         }
+                                    
+                                    
+            //                     } else {
+            //                         println!("error in else statment, need to write");
+            //                     }
+            //                 } else {
+            //                     println!("error in if statment, need to write");
+            //                 }
+            //             } else {
+
+            //                 //Parse the if list
+            //                 let newIfList: Vec<Token> = ifList.iter().cloned().map(|t| t.clone()).collect();
+                            
+            //                 let scanIf = self.parse(newIfList, 0);
+            //                 let mut ifBlock: Option<Stmt>;
+            //                 match scanIf {
+            //                     Ok((reporting, Some(stmt))) => {
+            //                         // Add your logic to handle the parsed condition statement here
+            //                         // For example:
+            //                         // println!("Good if: {:?}", stmt);
+            //                         ifBlock = Some(stmt); // Assuming Stmt is the type of your condition
+            //                         // Add condition to your newBlock or handle it as needed
+            //                     },
+            //                     Ok((reporting, None)) => {
+            //                         println!("Parsed condition but no statement returned.");
+            //                         ifBlock = None; // Assuming Stmt is the type of your condition
+
+            //                         self.reports.reportError(format!(
+            //                             "In line: {}, Error with condition", curStmt[0].lineNum
+            //                         ));
+
+            //                     },
+            //                     Err(reporting) => {
+            //                         println!("Error parsing condition: {:?}", reporting);
+            //                         println!("Parsed condition but no statement returned.");
+            //                         ifBlock = None; // Assuming Stmt is the type of your condition
+            //                         self.reports.reportError(format!(
+            //                             "In line: {}, Error with condition", curStmt[0].lineNum
+            //                         ));
+            //                     },
+            //                 }
+
+                            
+
+            //                 if let Some(ifCond) = ifBlock {
+                                    
+            //                     let result = self.processBlock(&cond);
+
+            //                     if result.is_ok() {
+            //                         let expr = result.unwrap();
+
+            //                         let ifStmt = Stmt::If(expr, Box::new(ifCond), None);
+            //                         // println!("Here is the if statement: {:?}", ifStmt);
+            //                         let _ = newBlock.push_to_block(ifStmt);
+
+
+            //                     } else {
+            //                         println!("Failed to extract Expr in if: {}", result.unwrap_err());
+            //                     }
+                                    
+                                    
+            //                 } else {
+            //                     println!("error in if statment, need to write");
+            //                 }
+            //             }
+
+            //         }
+
+            //         //Moves the token list past the if statement
+            //         let i = k;
+            //         // println!("newStart: {}", newstart.to_string());
+            //         // println!("newstart token: {}", &tokenList[newstart].tokenString);
+
+            //     } else {
+            //         println!("ERROR IN IF CONDITION, need to write");
+            //     }
+            
+
+            //     // println!("K: {}", tokenList[k].tokenString);
+            //     i = k + 1; // Move to the next token after the END_IF
+            // }
+            // tokenTypeEnum::L_PAREN => {
+            //     let mut k = i + 1; // Start from the token right after '('
+            //     // println!("\nFound a (");
+            //     let mut curStmt: Vec<&Token> = vec![];
+            //     let mut depth = 1; // Track nested parentheses depth
+            
+            //     while k < tokenList.len() {
+            //         let nextTok = &tokenList[k];
+            //         // println!("Current token: {}", nextTok.tokenString);
+            
+            //         if nextTok.tt == tokenTypeEnum::L_PAREN {
+            //             // println!("Sub statement found");
+            //             depth += 1;
+            //         } else if nextTok.tt == tokenTypeEnum::R_PAREN {
+            //             // println!("Closing bracket found");
+            //             depth -= 1;
+            
+            //             if depth == 0 {
+            //                 // End of the nested parentheses block
+            //                 curStmt.push(nextTok);
+            //                 break;
+            //             }
+            //         }
+            
+            //         curStmt.push(nextTok);
+            //         k += 1;
+            //     }
+
+            //     let newTokList: Vec<Token> = curStmt.iter().cloned().map(|t| t.clone()).collect();
+            //     let scanned = self.parse(newTokList, 0);
+            
+            //     match scanned {
+            //         Ok((reporting, Some(stmt))) => {
+            //             // println!("Parsed nested statement: {:?}", stmt);
+            //             // Push the parsed statement into newBlock
+            //             let result = self.processBlock(&stmt);
+
+            //             if result.is_ok() {
+            //                 let expr = result.unwrap();
+            //                 // println!("Extracted Expr: {:?}", expr);
+
+            //                 let exprStmt = Stmt::Expr(expr);
+
+            //                 // println!("testStmt: {}", testStmt);
+            //                 let _ = newBlock.push_to_block(exprStmt);
+
+            //             } else {
+            //                 println!("Failed to extract Expr in l_paren: {}", result.unwrap_err());
+            //             }
+
+                        
+            //         },
+            //         Ok((reporting, None)) => {
+            //             println!("Parsed nested statement but no statement returned.");
+            //             // Handle the case where no statement is returned (if needed)
+            //         },
+            //         Err(reporting) => {
+            //             println!("Error parsing nested statement: {:?}", reporting);
+            //             return Err(reporting); // Propagate the error up the call stack
+            //         },
+            //     }
+            
+            //     i = k + 1; // Move index past the ')' token
+            // }
+            // tokenTypeEnum::PROCEDURE => {
+            //     //Finds the end of the procedure statement
+            //     let mut k = i + 1;
+            //     let mut nextTok = &tokenList[k];
+            //     println!("\n\nFound a procedure");
+            //     let mut curStmt: Vec<&Token> = vec![];
+            
+            //     // Finds the end of the if
+            //     curStmt.push(token);
+            //     while nextTok.tt != tokenTypeEnum::END_PROCEDURE {
+            //         curStmt.push(nextTok);
+            //         k = k + 1;
+            //         nextTok = &tokenList[k];
+            //     }
+            //     curStmt.push(nextTok);
+
+            //     let procId = &curStmt[1].tokenString;
+            //     let procType = VarType::new(&curStmt[3].tokenString);
+
+            //     println!("Found the end of a procedure");
+
+            //     //Gets the procedure type
+            //     match procType {
+            //         Ok(varType) => {
+            //             println!("Procedure type: {:?}", varType);
+            //             println!("Procedure id: {}", procId);
+
+            //         }
+            //         Err(err) => println!("Error determining procedure type: {}", err),
+            //     }
+
+            //     let mut paramList = Stmt::Block(Vec::new());
+                
+            //     let mut j = 5;
+            //     //Finds the end of the parameters
+            //     if(curStmt[4].tt != tokenTypeEnum::L_PAREN){
+            //         println!("Not parentheses: {}", &curStmt[4].tt);
+            //     } else {
+            //         //Finds the end of the procedure statement
+            //         let mut nextTok = &curStmt[j];
+            //         // println!("\n\nFound a procedure");
+            //         let mut paramTokens: Vec<&Token> = vec![];
+            //         let decLine = curStmt[4].lineNum.clone();
+            //         // Finds the end of the if
+            //         // curStmt.push(token);
+            //         while nextTok.tt != tokenTypeEnum::R_PAREN  {
+            //             if(nextTok.lineNum != decLine){
+            //                 println!("No right parent, make error");
+            //             } else {
+            //                 paramTokens.push(nextTok);
+            //                 j = j + 1;
+            //                 nextTok = &curStmt[j];
+            //             }
+            //         }
+
+            //         // println!("Found all parameters:");
+            //         // for token in &paramTokens {
+            //         //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //         // }
+
+
+
+            //         let mut curParam: Vec<&Token> = vec![];
+            //         for token in &paramTokens {
+            //             if(token.tt == tokenTypeEnum::COMMA) {
+            //                 //Parse the parameter
+            //                 let tokenString: String = ";".to_string();
+            //                 let semicolon = Token::new(crate::tokenTypeEnum::SEMICOLON,tokenString, decLine.to_string());
+            //                 curParam.push(&semicolon);
+            //                 let newCurParam: Vec<Token> = curParam.iter().cloned().map(|t| t.clone()).collect();
+            //                 let scanParam = self.parse(newCurParam, 0);
+            //                 let mut paramBlock: Option<Stmt>;
+            //                 match scanParam {
+            //                     Ok((reporting, Some(stmt))) => {
+            //                         // Add your logic to handle the parsed condition statement here
+            //                         // For example:
+            //                         // println!("Good if: {:?}", stmt);
+            //                         paramBlock = Some(stmt); // Assuming Stmt is the type of your condition
+            //                         // Add condition to your newBlock or handle it as needed
+            //                     },
+            //                     Ok((reporting, None)) => {
+            //                         println!("Parsed parameter but no statement returned.");
+            //                         paramBlock = None; // Assuming Stmt is the type of your condition
+
+            //                         self.reports.reportError(format!(
+            //                             "In line: {}, Error with parameter", curStmt[0].lineNum
+            //                         ));
+
+            //                     },
+            //                     Err(reporting) => {
+            //                         println!("Error parsing condition: {:?}", reporting);
+            //                         println!("Parsed condition but no statement returned.");
+            //                         paramBlock = None; // Assuming Stmt is the type of your condition
+            //                         self.reports.reportError(format!(
+            //                             "In line: {}, Error with condition", curStmt[0].lineNum
+            //                         ));
+            //                     },
+            //                 }
+            //                 if let Some(param) = paramBlock {
+                                    
+            //                     let result = self.processBlockStmt(&param);
+
+            //                     if result.is_ok() {
+            //                         let param = result.unwrap();
+
+            //                         // let paramStmt = Stmt::If(expr, Box::new(ifCond), None);
+            //                         // println!("Here is the if parameter: {:?}", param);
+            //                         let _ = paramList.push_to_block(param);
+            //                         // let _ = newBlock.push_to_block(ifStmt);
+
+
+            //                     } else {
+            //                         println!("Failed to extract Expr in param: {}", result.unwrap_err());
+            //                     }
+                                    
+                                    
+            //                 } else {
+            //                     println!("error in if statment, need to write");
+            //                 }
+            //                 curParam = vec![];
+            //             } else {
+            //                 curParam.push(token);
+            //             }
+            //         }
+            //         if((paramTokens.len().clone() as i32) != 0){
+            //             let tokenString: String = ";".to_string();
+            //             let semicolon = Token::new(crate::tokenTypeEnum::SEMICOLON,tokenString, decLine.to_string());
+            //             curParam.push(&semicolon);
+            //             let newCurParam: Vec<Token> = curParam.iter().cloned().map(|t| t.clone()).collect();
+            //             let scanParam = self.parse(newCurParam, 0);
+            //             let mut paramBlock: Option<Stmt>;
+            //             match scanParam {
+            //                 Ok((reporting, Some(stmt))) => {
+            //                     // Add your logic to handle the parsed condition statement here
+            //                     // For example:
+            //                     // println!("Good if: {:?}", stmt);
+            //                     paramBlock = Some(stmt); // Assuming Stmt is the type of your condition
+            //                     // Add condition to your newBlock or handle it as needed
+            //                 },
+            //                 Ok((reporting, None)) => {
+            //                     println!("Parsed parameter but no statement returned.");
+            //                     paramBlock = None; // Assuming Stmt is the type of your condition
+
+            //                     self.reports.reportError(format!(
+            //                         "In line: {}, Error with parameter", curStmt[0].lineNum
+            //                     ));
+
+            //                 },
+            //                 Err(reporting) => {
+            //                     println!("Error parsing condition: {:?}", reporting);
+            //                     println!("Parsed condition but no statement returned.");
+            //                     paramBlock = None; // Assuming Stmt is the type of your condition
+            //                     self.reports.reportError(format!(
+            //                         "In line: {}, Error with condition", curStmt[0].lineNum
+            //                     ));
+            //                 },
+            //             }
+            //             if let Some(param) = paramBlock {
+                                
+            //                 let result = self.processBlockStmt(&param);
+
+            //                 if result.is_ok() {
+            //                     let param = result.unwrap();
+
+            //                     // let paramStmt = Stmt::If(expr, Box::new(ifCond), None);
+            //                     // println!("Here is the if parameter: {:?}", param);
+            //                     let _ = paramList.push_to_block(param);
+            //                     // let _ = newBlock.push_to_block(ifStmt);
+
+
+            //                 } else {
+            //                     println!("Failed to extract Expr in param: {}", result.unwrap_err());
+            //                 }
+                                
+                                
+            //             } else {
+            //                 println!("error in if statment, need to write");
+            //             }
+            //         }
+            //     }
+
+
+            //     // println!("Procedure tokens: ");
+            //     // for token in &curStmt {
+            //     //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //     // }
+
+            //     println!("Params: ");
+            //     paramList.display(0);
+
+            //     println!("Next token: {}", &curStmt[j+2].tokenString);
+
+            //     curStmt.drain(0..j+1);
+
+            //     // println!("remaining Procedure tokens: ");
+            //     // for token in &curStmt {
+            //     //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //     // }
+
+            //     let newCurParam: Vec<Token> = curStmt.iter().cloned().map(|t| t.clone()).collect();
+                
+            //     // println!("new curStmt: ");
+            //     // for token in &newCurParam {
+            //     //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //     // }
                 
                 
-                
-                
-                _ => {
-                    i = i + 1;
-                }
+            //     let scanParam = self.parse(newCurParam, 0);
+            //     let mut paramBlock: Option<Stmt>;
+            //     match scanParam {
+            //         Ok((reporting, Some(stmt))) => {
+            //             // Add your logic to handle the parsed condition statement here
+            //             // For example:
+            //             // println!("Good if: {:?}", stmt);
+            //             paramBlock = Some(stmt); // Assuming Stmt is the type of your condition
+            //             // Add condition to your newBlock or handle it as needed
+            //         },
+            //         Ok((reporting, None)) => {
+            //             println!("Parsed procedure but no statement returned.");
+            //             paramBlock = None; // Assuming Stmt is the type of your condition
+
+            //             self.reports.reportError(format!(
+            //                 "In line: {}, Error with procedure", curStmt[0].lineNum
+            //             ));
+
+            //         },
+            //         Err(reporting) => {
+            //             println!("Error parsing procedure: {:?}", reporting);
+            //             println!("Parsed procedure but no statement returned.");
+            //             paramBlock = None; // Assuming Stmt is the type of your condition
+            //             self.reports.reportError(format!(
+            //                 "In line: {}, Error with procedure", curStmt[0].lineNum
+            //             ));
+            //         },
+            //     }
+            //     if let Some(param) = paramBlock {
+                        
+            //         let result = self.processBlockStmt(&param);
+
+            //         if result.is_ok() {
+            //             let param = result.unwrap();
+
+            //             // let paramStmt = Stmt::If(expr, Box::new(ifCond), None);
+            //             println!("Here is the procedure: {:?}", param);
+            //             // let _ = paramList.push_to_block(param);
+            //             // let _ = newBlock.push_to_block(ifStmt);
+
+
+            //         } else {
+            //             println!("Failed to extract Expr in procedure: {}", result.unwrap_err());
+            //         }
+                        
+                        
+            //     } else {
+            //         println!("error in procedure, need to write");
+            //     }
+
+
+
+
+            
+
+            //     // println!("K: {}", tokenList[k].tokenString);
+            //     i = k + 1; // Move to the next token after the END_IF
+            // }
+            // tokenTypeEnum::RETURN => {
+            //     if tokenList[i+1].tt != tokenTypeEnum::SEMICOLON {
+            //         let retValue = Expr::VarRef(tokenList[i+1].tokenString.clone());
+            //         let retStmt = Stmt::Return(retValue);
+            //         let _ = newBlock.push_to_block(retStmt);
+            //         i = i + 3;
+            //     } else {
+            //         let retValue = Expr::VarRef("".to_string());
+            //         let retStmt = Stmt::Return(retValue);
+            //         let _ = newBlock.push_to_block(retStmt);
+            //         i = i + 2;
+            //     }
+            // }
+            
+            
+            
+            
+            _ => {
+                // i = i + 1;
+                // return(Ok());
+                return Ok((None));
+
             }
         }
+        // }
         // // println!("No elements in this token list");
         // println!("Individual parse finished: ") ;
-        Ok((self.reports.clone(), Some(newBlock)))
+        return Ok(None);
     }
 
     //Prints all of the tokens

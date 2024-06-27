@@ -3,14 +3,14 @@ program MyTestProgram is
 variable value : integer;
 variable tmp2 : float;  //this variable will be hidden by the declaration in Fib
 variable out : bool;
+variable myArray : integer[15];
+
 
 
 
 begin
 
-if(i > 100) then
-	i:= 1110;
+i:= 1110;
 
-end if;
 
 end program.

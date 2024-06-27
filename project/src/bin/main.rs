@@ -46,9 +46,37 @@ use std::io::prelude::*;
 //The enumeration for saving Token types, this is a list of every type of Token there is
 #[derive(Clone)]
 #[derive(PartialEq)]
-enum tokenTypeEnum{
+pub enum tokenTypeEnum{
+    //Operators
     PLUS, 
-    MINUS, 
+    MINUS,
+    LESS,
+    GREATER,
+    LESS_EQUALS,
+    GREATER_EQUALS,
+    SET_EQUALS,
+    CHECK_EQUALS,
+    MULTIPLY,
+    DIVIDE,
+    
+    
+    //Variable types
+    INT,
+    FLOAT, 
+    STRING,
+
+    //Word types
+    IDENTIFIER, 
+    
+    //Keywords
+    IF,
+    ELSE,
+    GLOBAL,
+    VARIABLE,
+    THEN,
+    END,
+    
+
     IF_RW, 
     LOOP_RW, 
     END_RW, 
@@ -56,40 +84,23 @@ enum tokenTypeEnum{
     R_PAREN,
     L_BRACKET, 
     R_BRACKET,
-    INT,
-    FLOAT, 
-    IDENTIFIER, 
-    LESS,
-    GREATER,
-    LESS_EQUALS,
-    GREATER_EQUALS,
+    
     EOF,
     LETTER,
     UNACCOUNTED,
     WORD,
-    STRING,
-    SET_EQUALS,
-    CHECK_EQUALS,
     RETURN,
     ERROR,
     PROGRAM,
     IS,
     BEGIN,
     PROCEDURE,
-    IF,
-    ELSE,
-    GLOBAL,
-    VARIABLE,
-    THEN,
-    END,
     SEMICOLON,
     COLON,
     PERIOD,
     END_PROGRAM,
     END_PROCEDURE,
     END_IF,
-    MULTIPLY,
-    DIVIDE,
     COMMA,
 
     
@@ -268,6 +279,10 @@ impl Lexer{
                         currChar = self.inputFile.getChar();
                     }
                 }
+            } else if c == ' ' {
+                let tokenString = '/';
+                let newToken = Token::new(crate::tokenTypeEnum::DIVIDE,tokenString.to_string(), self.inputFile.lineCnt.to_string());
+                return newToken;
             }
         }
 
@@ -780,20 +795,6 @@ impl Parser{
         }
     }
 
-    fn processBlockStmt(&mut self, block: &Stmt) -> Result<Stmt, String> {
-        match block {
-            Stmt::Block(stmts) => {
-                if let Some(first_stmt) = stmts.first() {
-                    Ok(first_stmt.clone()) // Cloning to return a new instance
-                } else {
-                    Err("Block is empty".to_string())
-                }
-            },
-            _ => Err("Expected Stmt::Block, but received a different Stmt type".to_string()),
-        }
-    }
-    
-
     fn parse(&mut self, tokenList: &mut Vec<Token>) -> Result<Option<Stmt>, String> {
         // let mut tokenList = &mut self.tokenList;
 
@@ -891,6 +892,8 @@ impl Parser{
                         
 
                         let mut newBody: Vec<Token> = bodyList.iter().cloned().map(|t| t.clone()).collect();
+                        newBody.drain(0..1);
+                        // println!("First in body: {}", newBody[0].tokenString);
                         let mut bodyBlock = Stmt::Block(Vec::new());
                         let mut bodyI = 0;
                         let bodyLen = newBody.len();
@@ -1064,133 +1067,254 @@ impl Parser{
 
                 
             }
-            // tokenTypeEnum::BEGIN => {
-            //     let mut k = i + 1;
-            //     let mut nextTok = &tokenList[k];
-            //     // println!("\nFound a program begin");
-            //     let mut curStmt: Vec<Token> = vec![];
-            //     curStmt.push(token.clone());
-            //     while (nextTok.tt != tokenTypeEnum::END_PROGRAM) && (nextTok.tt != tokenTypeEnum::END_PROCEDURE) {
-            //         curStmt.push(nextTok.clone());
-            //         k = k + 1;
-            //         nextTok = &tokenList[k];
-            //     }
-            //     curStmt.push(nextTok.clone());
-            //     // println!("Found the end program");
-                
-            //     curStmt.remove(0);
             
-            //     // for token in &curStmt {
-            //     //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-            //     // }
-            
-            //     // let progBlock = ;
-            //     let subLen = curStmt.len().clone();
-
-            //     match self.parse(curStmt, scope.clone()) {
-            //         Ok((reporting, Some(stmt))) => {
-            //             // println!("\n\nParsing succeeded.");
-            //             // println!("Reporting: {:?}", reporting);
-            //             // println!("Parsed Statement: {:?}", stmt);
-            //             // println!("Returned block: {}", stmt);
-
-            //             let _ = newBlock.push_to_block(stmt);
-
-            //             // Continue with normal flow
-            //         }
-            //         Ok((reporting, None)) => {
-            //             // println!("\n\nParsing succeeded, but no statement was returned.");
-            //             // println!("Reporting: {:?}", reporting);
-            //             // Continue with normal flow
-            //         }
-            //         Err(reporting) => {
-            //             // eprintln!("\n\nParsing failed.");
-            //             // eprintln!("Reporting: {:?}", reporting);
-            //             // Handle the error gracefully, log, recover, etc.
-            //         }
-            //     }
-
-
-
+            tokenTypeEnum::IDENTIFIER => {
+                let mut retStmt:Stmt;
                 
-            //     i = i + subLen;
-            // }
-            // tokenTypeEnum::IDENTIFIER => {
-            //     let mut k = i + 1;
-            //     let mut nextTok = &tokenList[k];
-            //     // println!("Found an identifier");
-            //     let mut curStmt: Vec<&Token> = vec![];
-            //     curStmt.push(token);
-            //     while k < tokenList.len() {
-            //         let nextTok = &tokenList[k];
-            //         curStmt.push(nextTok);
+                let mut k = 0;
+                let mut nextTok = &tokenList[k];
+                // println!("Found an identifier");
+                let mut curStmt: Vec<&Token> = vec![];
+                // curStmt.push(token);
+                while k < tokenList.len() {
+                    let nextTok = &tokenList[k];
+                    curStmt.push(nextTok);
                 
-            //         if (nextTok.tt == tokenTypeEnum::SEMICOLON) || (nextTok.tt == tokenTypeEnum::R_PAREN) {
-            //             break; // Stop loop when semicolon is found
-            //         }
+                    if (nextTok.tt == tokenTypeEnum::SEMICOLON) || (nextTok.tt == tokenTypeEnum::R_PAREN) {
+                        break; // Stop loop when semicolon or parentheses is found
+                    }
                 
-            //         k += 1;
-            //     }
-            //     // curStmt.push(nextTok);
-            //     // println!("Found the semicolon");
+                    k += 1;
+                }
+                // curStmt.push(nextTok);
+                // println!("Found the semicolon");
 
-            //     // println!("{}", curStmt[1].tokenString);
-            //     if(curStmt[1].tt == tokenTypeEnum::SET_EQUALS) {
-            //         let varName = &curStmt[0].tokenString;
-            //         println!("command length: {}", &curStmt.len().to_string());
-            //         if (curStmt.len() < 3) {
-            //             println!("\n\nSimple set equals found");
-            //             if(curStmt[2].tt == tokenTypeEnum::INT){
-            //                 let newExpr = Expr::IntLiteral(curStmt[2].tokenString.parse().unwrap());
-            //                 let newVar = Stmt::Assign(varName.clone(), newExpr);
-            //                 let _ = newBlock.push_to_block(newVar);
-            //             } else if(curStmt[2].tt == tokenTypeEnum::STRING){
-            //                 let strValue = &curStmt[2].tokenString;
-            //                 let newExpr = Expr::StringLiteral(strValue.clone());
-            //                 let newVar = Stmt::Assign(varName.clone(), newExpr);
-            //                 let _ = newBlock.push_to_block(newVar);
-            //             }
-            //         } else {
-            //             // println!("{}", curStmt[1].tt);
-            //             println!("Fuck you");
-            //             // println!("curStmt:");
-            //             // for token in &curStmt {
-            //             //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-            //             // }
-            //         }
-                    
-            //     } else {
-            //         // println!("Found a greater, first token: {}", curStmt[0].tt);
-            //         // Assuming curStmt[0].tt.to_string() is a &str
-            //         let varRefExpr = Expr::new("VarRef", None, Some(&curStmt[0].tokenString), None, None)?;
-            //         let first = Box::new(varRefExpr);
+                // println!("{}", curStmt[0].tokenString);
+                match curStmt[1].tt {
+                    tokenTypeEnum::SET_EQUALS => {
+                        let varName = &curStmt[0].tokenString;
+                        println!("command length: {}", &curStmt.len().to_string());
+                        //Simple assign
+                        if (curStmt.len() == 4) {
+                            // println!("Simple set equals found");
+                            let varName = curStmt[0].tokenString.clone();
+                            let valueRes = Expr::new(curStmt[2].tt.clone(), Some(curStmt[2].tokenString.clone()));
+                            let mut valueExpr:Expr; 
+                            match valueRes {
+                                Ok(expr) => {
+                                    valueExpr = expr;
+                                }
+                                Err(err) => {
+                                    println!("Error creating expression");
+                                    let errMsg = format!("Error on line {}: {}", curStmt[0].lineNum, err);
+                                    self.reports.reportError(errMsg);
+                                    return Err("Error with expression".to_string());
+                                }
+                            }
+                            let assignStmt = Stmt::Assign(varName, valueExpr);
+                            tokenList.drain(0..k+1);
+                            return Ok(Some(assignStmt));
+                            
+                        }  else if (curStmt.len() > 4) {
+                            println!("complex set equals");
+    
+                            let mut subList = tokenList.clone();
+                            subList.drain(0..2); 
+                            println!("First token: {}", subList[0].tokenString);
+                            let mut parsedExpr: Expr;
+                            let scanned = self.parse(&mut subList);                            
+                                let mut headerStmt:Expr;
+                                // let mut headerReporting = Reporting::new();
+                                match scanned {
+                                    Ok((Some(stmt))) => {
+                                        let parsed = stmt.extractExpr();
+                                        match parsed {
+                                            Ok(expr) => {
+                                                parsedExpr = expr
+                                            },
+                                            Err(msg) => {
+                                                println!("Error parsing expression from statment");
+                                                let errMsg = format!("Error parsing body: {:?}", self.reports);
+                                                parsedExpr = Expr::IntLiteral(0);
+                                            }
+                                        }
+                                                 
+                                        
+                                    },
+                                    Ok((None)) => {
+                                        println!("Parsed complex expression but no statement returned.");
+                                        parsedExpr = Expr::IntLiteral(0);
+                                    },
+                                    Err(reporting) => {
+                                        println!("Error parsing expression: {:?}", reporting);
+                                        let errMsg = format!("Error parsing body: {:?}", self.reports);
+    
+                                        return Err(errMsg);
+                                    },
+                                }
+                            println!("Expression parsed: {}", parsedExpr);
+                            let retStmt = Stmt::Assign(varName.to_string(), parsedExpr);
+                            
+                            // parsedStmt.display(0);
+                            tokenList.drain(0..k+1);
+                            return Ok(Some(retStmt));
+                        
+                        } else {
+                            // println!("{}", curStmt[1].tt);
+                            println!("Fuck you");
+                            self.reports.reportError(format!(
+                                "In line: {}, Satement is too short'", curStmt[3].lineNum));
+                            return Err("Error with identifier".to_string());
+                        } 
+                    }
+                    _ => {
+                        println!("Found an expression of type: {}", curStmt[1].tokenString);
+                        println!("Expressions length: {}", curStmt.len());
+                        if(curStmt.len() == 4) {
+                            println!("Simple expression");
+                            let operand1 = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
+                            let mut op1Expr: Expr;
+                            match operand1 {
+                                Ok(expr) => {
+                                    op1Expr = expr;
+                                }
+                                Err(err) => {
+                                    println!("Error parsing operand 1");
+                                    let errMsg = format!("Error with operand 1 on line {}: {}", curStmt[0].lineNum, err);
+                                    self.reports.reportError(errMsg);
+                                    return Err("Error with operand 1".to_string());
+                                }
+                            }
+                            
+                            let operand2 = Expr::new(curStmt[2].tt.clone(), Some(curStmt[2].tokenString.clone()));
+                            let mut op2Expr: Expr;
+                            match operand2 {
+                                Ok(expr) => {
+                                    op2Expr = expr;
+                                }
+                                Err(err) => {
+                                    println!("Error parsing operand 2");
+                                    let errMsg = format!("Error with operand 2 on line {}: {}", curStmt[0].lineNum, err);
+                                    self.reports.reportError(errMsg);
+                                    return Err("Error with operand 2".to_string());
+                                }
+                            }
+                        
+                            let operator = BinOp::new(curStmt[1].tt.clone());
+                            let mut opBin:BinOp; 
+                            match operator {
+                                Ok(expr) => {
+                                    opBin = expr;
+                                }
+                                Err(err) => {
+                                    println!("Error creating expression");
+                                    let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
+                                    self.reports.reportError(errMsg);
+                                    return Err("Error with operator".to_string());
+                                }
+                            }
+                            
+                            let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
 
-            //         let opStr = curStmt[1].tt.to_string();
-                    
-            //         // println!("HERE IS THIS: {}", curStmt[0].tokenString);
-            //         // println!("HERE IS THIS: {}", curStmt[1].tokenString);
-            //         // println!("HERE IS THIS: {}", curStmt[2].tokenString);
+                            let retStmt = Stmt::Expr(finalExpr);
+                            tokenList.drain(0..k+1);
+                            return Ok(Some(retStmt));
 
-            //         // println!("ON LINE: {}", curStmt[1].lineNum);
-            //         let op = BinOp::new(&opStr)?;
+                        } else if (curStmt.len() > 4) {
+                            println!("Complex expressions");
+                            println!("First complex expression token: {}", curStmt[0].tokenString);
 
-            //         // Assuming curStmt[3].tokenString is a &str and needs to be converted to i64
-            //         // println!("Operand here: {}", curStmt[2].tokenString);
-            //         let intLiteralExpr = Expr::new("IntLiteral", Some(&curStmt[2].tokenString), None, None, None)?;
-            //         let second = Box::new(intLiteralExpr);
+                            //Parses the first operand
+                            let operand1 = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
+                            let mut op1Expr: Expr;
+                            match operand1 {
+                                Ok(expr) => {
+                                    op1Expr = expr;
+                                }
+                                Err(err) => {
+                                    println!("Error parsing operand 1");
+                                    let errMsg = format!("Error with operand 1 on line {}: {}", curStmt[0].lineNum, err);
+                                    self.reports.reportError(errMsg);
+                                    return Err("Error with operand 1".to_string());
+                                }
+                            }
 
-            //         let newExpr = Expr::BinOp(first, op, second);
-            //         let newStmt = Stmt::Expr(newExpr);
+                            println!("Operand 1: {}", op1Expr);
+                            
+                            let mut subList = tokenList.clone();
+                            subList.drain(0..2);
+                            // println!("First new token expression token: {}", subList[0].tokenString);
 
-            //         let _ = newBlock.push_to_block(newStmt);
-            //     }
+                            let mut parsedExpr: Expr;
+                            let scanned = self.parse(&mut subList);                            
+                                let mut headerStmt:Expr;
+                                // let mut headerReporting = Reporting::new();
+                                match scanned {
+                                    Ok((Some(stmt))) => {
+                                        let parsed = stmt.extractExpr();
+                                        match parsed {
+                                            Ok(expr) => {
+                                                parsedExpr = expr
+                                            },
+                                            Err(msg) => {
+                                                println!("Error parsing expression from statment");
+                                                let errMsg = format!("Error parsing body: {:?}", self.reports);
+                                                parsedExpr = Expr::IntLiteral(0);
+                                            }
+                                        }
+                                                 
+                                        
+                                    },
+                                    Ok((None)) => {
+                                        println!("Parsed complex expression but no statement returned.");
+                                        parsedExpr = Expr::IntLiteral(0);
+                                    },
+                                    Err(reporting) => {
+                                        println!("Error parsing expression: {:?}", reporting);
+                                        let errMsg = format!("Error parsing body: {:?}", self.reports);
+    
+                                        return Err(errMsg);
+                                    },
+                                }
+                            println!("Expression parsed: {}", parsedExpr);
+                            let op2Expr = parsedExpr;
+                            println!("Operand 2: {}", op2Expr);
 
-            //     // for token in &curStmt {
-            //     //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-            //     // }
 
-            //     i = i + 1;
-            // }
+                            let operator = BinOp::new(curStmt[1].tt.clone());
+                            let mut opBin:BinOp; 
+                            match operator {
+                                Ok(expr) => {
+                                    opBin = expr;
+                                }
+                                Err(err) => {
+                                    println!("Error creating expression");
+                                    let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
+                                    self.reports.reportError(errMsg);
+                                    return Err("Error with operator".to_string());
+                                }
+                            }
+
+                            println!("Operator: {}", opBin);
+
+                            
+                            let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
+
+                            println!("Final complex expression: {}", finalExpr);
+
+                            let retStmt = Stmt::Expr(finalExpr);
+                            tokenList.drain(0..k+1);
+                            return Ok(Some(retStmt));
+                        } else {
+                            println!("Fucked up expressions");
+                             // println!("{}", curStmt[1].tt);
+                             self.reports.reportError(format!(
+                                 "In line: {}, expression is too short'", curStmt[3].lineNum));
+                             return Err("Error with expression".to_string());
+                        }
+                    }
+                }
+            }
             // tokenTypeEnum::IF => {
             //     //Finds the end of the IF statement
             //     let mut k = i + 1;
@@ -1807,8 +1931,392 @@ impl Parser{
             //         i = i + 2;
             //     }
             // }
+
+            // tokenTypeEnum::BEGIN => {
+            //     let mut retStmt:Stmt;
+            //     let mut k = 0;
+            //     let mut nextTok = &tokenList[k];
+            //     println!("\nFound a program begin");
+            //     let mut curStmt: Vec<Token> = vec![];
+            //     curStmt.push(token.clone());
+            //     while (nextTok.tt != tokenTypeEnum::END_PROGRAM) && (nextTok.tt != tokenTypeEnum::END_PROCEDURE) {
+            //         curStmt.push(nextTok.clone());
+            //         k = k + 1;
+            //         nextTok = &tokenList[k];
+            //     }
+            //     curStmt.push(nextTok.clone());
+            //     // println!("Found the end program");
+                
+            //     curStmt.remove(0);
             
+            //     // for token in &curStmt {
+            //     //     println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+            //     // }
             
+            //     // let progBlock = ;
+            //     let subLen = curStmt.len().clone();
+
+            //     match self.parse(&mut curStmt) {
+            //         Ok((reporting, Some(stmt))) => {
+            //             // println!("\n\nParsing succeeded.");
+            //             // println!("Reporting: {:?}", reporting);
+            //             // println!("Parsed Statement: {:?}", stmt);
+            //             // println!("Returned block: {}", stmt);
+
+            //             let retStmt = stmt;
+
+            //             // Continue with normal flow
+            //         }
+            //         Ok((reporting, None)) => {
+            //             // println!("\n\nParsing succeeded, but no statement was returned.");
+            //             // println!("Reporting: {:?}", reporting);
+            //             // Continue with normal flow
+            //         }
+            //         Err(reporting) => {
+            //             // eprintln!("\n\nParsing failed.");
+            //             // eprintln!("Reporting: {:?}", reporting);
+            //             // Handle the error gracefully, log, recover, etc.
+            //         }
+            //     }
+
+
+
+                
+            //     i = i + subLen;
+            // }
+            
+            tokenTypeEnum::END_PROGRAM => {
+                // println!("End program");
+                let len = tokenList.len();
+                tokenList.drain(0..len);
+                return Ok((None));
+            }
+            tokenTypeEnum::INT => {
+                let mut retStmt:Stmt;
+                
+                let mut k = 0;
+                let mut nextTok = &tokenList[k];
+                let mut curStmt: Vec<&Token> = vec![];
+                // curStmt.push(token);
+                while k < tokenList.len() {
+                    let nextTok = &tokenList[k];
+                    curStmt.push(nextTok);
+                
+                    if (nextTok.tt == tokenTypeEnum::SEMICOLON) || (nextTok.tt == tokenTypeEnum::R_PAREN) {
+                        break; // Stop loop when semicolon or parentheses is found
+                    }
+                
+                    k += 1;
+                }
+                
+                // println!("Found an expression of type: {}", curStmt[1].tokenString);
+                // println!("Expressions length: {}", curStmt.len());
+                if(curStmt.len() == 4) {
+                    // println!("Simple expression");
+                    let operand1 = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
+                    let mut op1Expr: Expr;
+                    match operand1 {
+                        Ok(expr) => {
+                            op1Expr = expr;
+                        }
+                        Err(err) => {
+                            println!("Error parsing operand 1");
+                            let errMsg = format!("Error with operand 1 on line {}: {}", curStmt[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with operand 1".to_string());
+                        }
+                    }
+                    
+                    let operand2 = Expr::new(curStmt[2].tt.clone(), Some(curStmt[2].tokenString.clone()));
+                    let mut op2Expr: Expr;
+                    match operand2 {
+                        Ok(expr) => {
+                            op2Expr = expr;
+                        }
+                        Err(err) => {
+                            println!("Error parsing operand 2");
+                            let errMsg = format!("Error with operand 2 on line {}: {}", curStmt[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with operand 2".to_string());
+                        }
+                    }
+                
+                    let operator = BinOp::new(curStmt[1].tt.clone());
+                    let mut opBin:BinOp; 
+                    match operator {
+                        Ok(expr) => {
+                            opBin = expr;
+                        }
+                        Err(err) => {
+                            println!("Error creating expression");
+                            let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with operator".to_string());
+                        }
+                    }
+                    
+                    let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
+
+                    let retStmt = Stmt::Expr(finalExpr);
+                    tokenList.drain(0..k+1);
+                    return Ok(Some(retStmt));
+
+                } else if (curStmt.len() > 4) {
+                    // println!("Complex expressions");
+                    // println!("First complex expression token: {}", curStmt[0].tokenString);
+
+                    //Parses the first operand
+                    let operand1 = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
+                    let mut op1Expr: Expr;
+                    match operand1 {
+                        Ok(expr) => {
+                            op1Expr = expr;
+                        }
+                        Err(err) => {
+                            println!("Error parsing operand 1");
+                            let errMsg = format!("Error with operand 1 on line {}: {}", curStmt[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with operand 1".to_string());
+                        }
+                    }
+
+                    // println!("Operand 1: {}", op1Expr);
+                    
+                    let mut subList = tokenList.clone();
+                    subList.drain(0..2);
+                    // println!("First new token expression token: {}", subList[0].tokenString);
+
+                    let mut parsedExpr: Expr;
+                    let scanned = self.parse(&mut subList);                            
+                        let mut headerStmt:Expr;
+                        // let mut headerReporting = Reporting::new();
+                        match scanned {
+                            Ok((Some(stmt))) => {
+                                let parsed = stmt.extractExpr();
+                                match parsed {
+                                    Ok(expr) => {
+                                        parsedExpr = expr
+                                    },
+                                    Err(msg) => {
+                                        println!("Error parsing expression from statment");
+                                        let errMsg = format!("Error parsing body: {:?}", self.reports);
+                                        parsedExpr = Expr::IntLiteral(0);
+                                    }
+                                }
+                                            
+                                
+                            },
+                            Ok((None)) => {
+                                println!("Parsed complex expression but no statement returned.");
+                                parsedExpr = Expr::IntLiteral(0);
+                            },
+                            Err(reporting) => {
+                                println!("Error parsing expression: {:?}", reporting);
+                                let errMsg = format!("Error parsing body: {:?}", self.reports);
+
+                                return Err(errMsg);
+                            },
+                        }
+                    // println!("Expression parsed: {}", parsedExpr);
+                    let op2Expr = parsedExpr;
+                    // println!("Operand 2: {}", op2Expr);
+
+
+                    let operator = BinOp::new(curStmt[1].tt.clone());
+                    let mut opBin:BinOp; 
+                    match operator {
+                        Ok(expr) => {
+                            opBin = expr;
+                        }
+                        Err(err) => {
+                            println!("Error creating expression");
+                            let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with operator".to_string());
+                        }
+                    }
+
+                    // println!("Operator: {}", opBin);
+
+                    
+                    let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
+
+                    // println!("Final complex expression: {}", finalExpr);
+
+                    let retStmt = Stmt::Expr(finalExpr);
+                    tokenList.drain(0..k+1);
+                    return Ok(Some(retStmt));
+                } else {
+                    println!("Fucked up expressions");
+                        // println!("{}", curStmt[1].tt);
+                        self.reports.reportError(format!(
+                            "In line: {}, expression is too short'", curStmt[3].lineNum));
+                        return Err("Error with expression".to_string());
+                }
+            }
+            tokenTypeEnum::FLOAT => {
+                let mut retStmt:Stmt;
+                
+                let mut k = 0;
+                let mut nextTok = &tokenList[k];
+                let mut curStmt: Vec<&Token> = vec![];
+                // curStmt.push(token);
+                while k < tokenList.len() {
+                    let nextTok = &tokenList[k];
+                    curStmt.push(nextTok);
+                
+                    if (nextTok.tt == tokenTypeEnum::SEMICOLON) || (nextTok.tt == tokenTypeEnum::R_PAREN) {
+                        break; // Stop loop when semicolon or parentheses is found
+                    }
+                
+                    k += 1;
+                }
+                
+                // println!("Found an expression of type: {}", curStmt[1].tokenString);
+                // println!("Expressions length: {}", curStmt.len());
+                if(curStmt.len() == 4) {
+                    // println!("Simple expression");
+                    let operand1 = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
+                    let mut op1Expr: Expr;
+                    match operand1 {
+                        Ok(expr) => {
+                            op1Expr = expr;
+                        }
+                        Err(err) => {
+                            println!("Error parsing operand 1");
+                            let errMsg = format!("Error with operand 1 on line {}: {}", curStmt[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with operand 1".to_string());
+                        }
+                    }
+                    
+                    let operand2 = Expr::new(curStmt[2].tt.clone(), Some(curStmt[2].tokenString.clone()));
+                    let mut op2Expr: Expr;
+                    match operand2 {
+                        Ok(expr) => {
+                            op2Expr = expr;
+                        }
+                        Err(err) => {
+                            println!("Error parsing operand 2");
+                            let errMsg = format!("Error with operand 2 on line {}: {}", curStmt[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with operand 2".to_string());
+                        }
+                    }
+                
+                    let operator = BinOp::new(curStmt[1].tt.clone());
+                    let mut opBin:BinOp; 
+                    match operator {
+                        Ok(expr) => {
+                            opBin = expr;
+                        }
+                        Err(err) => {
+                            println!("Error creating expression");
+                            let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with operator".to_string());
+                        }
+                    }
+                    
+                    let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
+
+                    let retStmt = Stmt::Expr(finalExpr);
+                    tokenList.drain(0..k+1);
+                    return Ok(Some(retStmt));
+
+                } else if (curStmt.len() > 4) {
+                    // println!("Complex expressions");
+                    // println!("First complex expression token: {}", curStmt[0].tokenString);
+
+                    //Parses the first operand
+                    let operand1 = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
+                    let mut op1Expr: Expr;
+                    match operand1 {
+                        Ok(expr) => {
+                            op1Expr = expr;
+                        }
+                        Err(err) => {
+                            println!("Error parsing operand 1");
+                            let errMsg = format!("Error with operand 1 on line {}: {}", curStmt[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with operand 1".to_string());
+                        }
+                    }
+
+                    // println!("Operand 1: {}", op1Expr);
+                    
+                    let mut subList = tokenList.clone();
+                    subList.drain(0..2);
+                    // println!("First new token expression token: {}", subList[0].tokenString);
+
+                    let mut parsedExpr: Expr;
+                    let scanned = self.parse(&mut subList);                            
+                        let mut headerStmt:Expr;
+                        // let mut headerReporting = Reporting::new();
+                        match scanned {
+                            Ok((Some(stmt))) => {
+                                let parsed = stmt.extractExpr();
+                                match parsed {
+                                    Ok(expr) => {
+                                        parsedExpr = expr
+                                    },
+                                    Err(msg) => {
+                                        println!("Error parsing expression from statment");
+                                        let errMsg = format!("Error parsing body: {:?}", self.reports);
+                                        parsedExpr = Expr::IntLiteral(0);
+                                    }
+                                }
+                                            
+                                
+                            },
+                            Ok((None)) => {
+                                println!("Parsed complex expression but no statement returned.");
+                                parsedExpr = Expr::IntLiteral(0);
+                            },
+                            Err(reporting) => {
+                                println!("Error parsing expression: {:?}", reporting);
+                                let errMsg = format!("Error parsing body: {:?}", self.reports);
+
+                                return Err(errMsg);
+                            },
+                        }
+                    // println!("Expression parsed: {}", parsedExpr);
+                    let op2Expr = parsedExpr;
+                    // println!("Operand 2: {}", op2Expr);
+
+
+                    let operator = BinOp::new(curStmt[1].tt.clone());
+                    let mut opBin:BinOp; 
+                    match operator {
+                        Ok(expr) => {
+                            opBin = expr;
+                        }
+                        Err(err) => {
+                            println!("Error creating expression");
+                            let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with operator".to_string());
+                        }
+                    }
+
+                    // println!("Operator: {}", opBin);
+
+                    
+                    let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
+
+                    // println!("Final complex expression: {}", finalExpr);
+
+                    let retStmt = Stmt::Expr(finalExpr);
+                    tokenList.drain(0..k+1);
+                    return Ok(Some(retStmt));
+                } else {
+                    println!("Fucked up expressions");
+                        // println!("{}", curStmt[1].tt);
+                        self.reports.reportError(format!(
+                            "In line: {}, expression is too short'", curStmt[3].lineNum));
+                        return Err("Error with expression".to_string());
+                }
+            }
             
             
             _ => {
@@ -1850,17 +2358,17 @@ pub enum BinOp {
 }
 
 impl BinOp {
-    pub fn new(op_str: &str) -> Result<Self, String> {
+    pub fn new(op_str: tokenTypeEnum) -> Result<Self, String> {
         match op_str {
-            "PLUS" => Ok(BinOp::Add),
-            "MINUS" => Ok(BinOp::Sub),
-            "TIMES" => Ok(BinOp::Mul),
-            "DIVIDE" => Ok(BinOp::Div),
-            "GREATER" => Ok(BinOp::Greater),
-            "LESS" => Ok(BinOp::Less),
-            "GREATER_EQUAL" => Ok(BinOp::Greater_Equal),
-            "LESS_EQUAL" => Ok(BinOp::Less_Equal),
-            "CHECK_EQUALS" => Ok(BinOp::Check_Equal),
+            tokenTypeEnum::PLUS => Ok(BinOp::Add),
+            tokenTypeEnum::MINUS => Ok(BinOp::Sub),
+            tokenTypeEnum::MULTIPLY => Ok(BinOp::Mul),
+            tokenTypeEnum::DIVIDE => Ok(BinOp::Div),
+            tokenTypeEnum::GREATER => Ok(BinOp::Greater),
+            tokenTypeEnum::LESS => Ok(BinOp::Less),
+            tokenTypeEnum::GREATER_EQUALS => Ok(BinOp::Greater_Equal),
+            tokenTypeEnum::LESS_EQUALS => Ok(BinOp::Less_Equal),
+            tokenTypeEnum::CHECK_EQUALS => Ok(BinOp::Check_Equal),
             _ => Err(format!("Unsupported operator: {}", op_str)),
         }
     }
@@ -1887,36 +2395,42 @@ impl fmt::Display for BinOp {
 #[derive(Debug, Clone)]
 pub enum Expr {
     IntLiteral(i64),
+    FloatLiteral(f64),
     StringLiteral(String),
-    BinOp(Box<Expr>, BinOp, Box<Expr>),
     VarRef(String),
+    BinOp(Box<Expr>, BinOp, Box<Expr>),
     
 }
 
 impl Expr {
-    pub fn new(expr_type: &str, param1: Option<&str>, param2: Option<&str>, param3: Option<Box<Expr>>, param4: Option<Box<Expr>>) -> Result<Self, String> {
+    pub fn new(expr_type: tokenTypeEnum, param1: Option<String>) -> Result<Self, String> {
         match expr_type {
-            "IntLiteral" => {
+            tokenTypeEnum::INT => {
                 let value_str = param1.ok_or("IntLiteral requires an integer parameter".to_string())?;
                 let value = value_str.parse::<i64>().map_err(|e| format!("Failed to parse integer: {}", e))?;
                 Ok(Expr::IntLiteral(value))
             },
-            "StringLiteral" => {
-                let value = param2.ok_or("StringLiteral requires a string parameter".to_string())?.to_string();
+            tokenTypeEnum::FLOAT => {
+                let value_str = param1.ok_or("Float requires a float parameter".to_string())?;
+                let value = value_str.parse::<f64>().map_err(|e| format!("Failed to parse integer: {}", e))?;
+                Ok(Expr::FloatLiteral(value))
+            },
+            tokenTypeEnum::STRING => {
+                let value = param1.ok_or("StringLiteral requires a string parameter".to_string())?.to_string();
                 Ok(Expr::StringLiteral(value))
             },
-            "BinOp" => {
-                let left = param3.ok_or("BinOp requires a left operand".to_string())?;
-                let op = match *left {
-                    Expr::BinOp(_, ref op, _) => op,
-                    _ => return Err("BinOp requires a BinOp enum as the left operand".to_string()),
-                };
-                let right = param4.ok_or("BinOp requires a right operand".to_string())?;
+            // "BinOp" => {
+            //     let left = param3.ok_or("BinOp requires a left operand".to_string())?;
+            //     let op = match *left {
+            //         Expr::BinOp(_, ref op, _) => op,
+            //         _ => return Err("BinOp requires a BinOp enum as the left operand".to_string()),
+            //     };
+            //     let right = param4.ok_or("BinOp requires a right operand".to_string())?;
 
-                Ok(Expr::BinOp(left.clone(), op.clone(), right.clone()))
-            },
-            "VarRef" => {
-                let var_name = param2.ok_or("VarRef requires a variable name".to_string())?.to_string();
+            //     Ok(Expr::BinOp(left.clone(), op.clone(), right.clone()))
+            // },
+            tokenTypeEnum::IDENTIFIER => {
+                let var_name = param1.ok_or("VarRef requires a variable name".to_string())?.to_string();
                 Ok(Expr::VarRef(var_name))
             },
             _ => Err("Invalid expression type".to_string()),
@@ -1930,6 +2444,7 @@ impl fmt::Display for Expr {
         match self {
             Expr::IntLiteral(i) => write!(f, "{}", i),
             Expr::StringLiteral(s) => write!(f, "{}", s),
+            Expr::FloatLiteral(n) => write!(f, "{}", n),
             Expr::BinOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
             Expr::VarRef(var) => write!(f, "{}", var),
         }
@@ -2039,6 +2554,13 @@ impl Stmt {
             
         }
     }
+
+    pub fn extractExpr(&self) -> Result<Expr, String> {
+        match self {
+            Stmt::Expr(expr) => Ok(expr.clone()), // Clone the expression to return it
+            _ => Err("Provided statement is not an expression.".to_string()),
+        }
+    }
 }
 
 // This is the struct that defines the vector of statements
@@ -2110,14 +2632,14 @@ impl From<String> for Reporting {
 struct symbolTable{
     // For now you can simply use a single hash table of tokens. As we move forward to parsing, the symbol table
     // structure will have to be augmented to permit the recording of entering/exiting program scopes as well as
-    // the scope that an IDENTIFER is declared. In general when you exit a scope the symbol table will remove
+    // the scope that an IDENTIFIER is declared. In general when you exit a scope the symbol table will remove
     // any symbols defined in that scope from the symbol table. Again, we will solve this problem later; the
     // example methods for scope entry/exit are here to deomonstrate what we will probably want in the future
     symTab: HashMap<String, Token>,
 }
 impl symbolTable{
     // The symbol table hashLook function should automatically create a new entry and mark it as an
-    // IDENTIFER Token for any IDENTIFIER string that is not already in the symbol table. In some languages
+    // IDENTIFIER Token for any IDENTIFIER string that is not already in the symbol table. In some languages
     // case does not matter to the uniqueness of the symbol. In this case, an easy place to solve this is to simply
     // upper case or lower case all strings in the symbol table API functions (and storage)
     fn new() -> symbolTable {

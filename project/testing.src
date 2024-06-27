@@ -12,5 +12,10 @@ begin
 
 i:= 1110;
 
+i := i / 1;
+
+//i := i + 1 * 5 / 6;
+
+
 
 end program.

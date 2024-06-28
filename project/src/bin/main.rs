@@ -2877,7 +2877,7 @@ impl Stmt {
                 header.display(indent + 1);
                 println!(" {}Body:",indentation);
                 body.display(indent + 1);
-                println!("{})", indent);
+                println!("{})", indentation);
             }
             Stmt::Procedure(procType, name, params, header, body) => {
                 println!("{}{} {}:(", indentation,procType,name);
@@ -2888,7 +2888,7 @@ impl Stmt {
                 header.display(indent + 1);
                 println!(" {}Body:",indentation);
                 body.display(indent + 1);
-                println!("{})", indent);
+                println!("{})", indentation);
             }
             
         }

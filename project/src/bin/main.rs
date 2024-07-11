@@ -1720,8 +1720,36 @@ impl Parser{
 
                             }
                             _ => {
-                                println!("Other");
-                                println!("Unknown operator: {}", curStmt[1].tokenString);
+                                let mut newValueList: Vec<Token> = curStmt.iter().cloned().map(|t| t.clone()).collect();
+
+
+
+                                // let mut newValueList = curStmt.clone();
+                                // newValueList.drain(..2);
+
+                                // println!("NewValueList:");
+                                // printTokList(&newValueList);
+
+                                let newExpr = self.parseExpr(&mut newValueList);
+                                let retVal: Expr;
+                                match newExpr {
+                                    Ok(expr) => {
+                                        retVal = expr;
+                                    }
+                                    Err(err) => {
+                                        // println!("Error parsing expression");
+                                        let errMsg = format!("Error on line {}: {}", tokenList[0].lineNum, err);
+                                        self.reports.reportError(errMsg);
+                                        return Err("Error with expression".to_string());
+                                    }
+                                }
+
+                                let exprStmt = Stmt::Expr((retVal));
+                                // println!("retval: {}", retVal);
+                                tokenList.drain(..k+1);
+                                return Ok(Some(exprStmt));
+                                // println!("Other");
+                                // println!("Unknown operator: {}", curStmt[1].tokenString);
                             }
                         }
                         
@@ -1786,6 +1814,8 @@ impl Parser{
 
                 let mut condInt;
 
+                println!("TEST");
+
                 let mut ifCondition: Expr;
                 // // Extract the condition if it exists
                 if curStmt[1].tt == tokenTypeEnum::L_PAREN {
@@ -1811,29 +1841,14 @@ impl Parser{
                     let mut parsedExpr: Expr;
 
                     // printTokList(&condStmt);
-                    let scanned = self.parse(&mut condStmt);                            
+                    let scanned = self.parseExpr(&mut condStmt);                            
                     let mut headerStmt:Expr;
 
                     // let mut headerReporting = Reporting::new();
                     match scanned {
-                        Ok((Some(stmt))) => {
-                            let parsed = stmt.extractExpr();
-                            match parsed {
-                                Ok(expr) => {
-                                    parsedExpr = expr
-                                },
-                                Err(msg) => {
-                                    println!("Error parsing expression from if condition");
-                                    let errMsg = format!("Error parsing if condition: {:?}", self.reports);
-                                    parsedExpr = Expr::IntLiteral(0);
-                                }
-                            }
-                                        
-                            
-                        },
-                        Ok((None)) => {
-                            println!("Parsed if expression but no statement returned.");
-                            parsedExpr = Expr::IntLiteral(0);
+                        Ok(stmt) => {
+                            println!("PARSED EXPRESSIONS: {}", stmt);                         
+                            parsedExpr = stmt;   
                         },
                         Err(err) => {
                             println!("Error parsing if condition: {:?}", err);
@@ -1852,6 +1867,7 @@ impl Parser{
                 }
 
                 // println!("\n\nIf Condition: {}", ifCondition);
+                println!("TEST1");
 
 
                 //Checks for an else statement

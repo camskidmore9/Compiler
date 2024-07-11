@@ -17,6 +17,11 @@ end procedure;
 
 begin
 
+if(val == 1) then
+    ret := 1;
+    return ret;
+end if;
+
 i[4] := 10;
 i[3] := -1;
 

@@ -509,10 +509,10 @@ impl Lexer{
                             tokType = tokenTypeEnum::FLOAT;
                             currChar = self.inputFile.getChar();
                         } else {
+                            // self.inputFile.unGetChar();
                             break;
                         }
                     }
-                    self.inputFile.unGetChar();
                     let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
                     newToken.lineNum = self.inputFile.lineCnt.to_string();
                     if newToken.tt != tokType {
@@ -644,6 +644,19 @@ impl Lexer{
 
                     }
                 }
+                // tokenTypeEnum::R_PAREN => {
+                //     let nextToken = &self.tokenList[i+1];
+                //     if nextToken.tt == tokenTypeEnum::SEMICOLON {
+                //         // println!("Combining end and if");
+                //         let newToken = Token::new(crate::tokenTypeEnum::SEMICOLON,";".to_string(), nextToken.lineNum.to_string(), tokenGroup::SYMBOL);
+                //         newTokList.push(newToken.clone());
+                //         i = i + 1;
+                //     } else {
+                //         // println!("other end with type: {}", nextToken.tt);
+                //         newTokList.push(token.clone());
+
+                //     }
+                // }
                 _ => {
                     // Handle other token types
                     newTokList.push(token.clone());
@@ -708,7 +721,7 @@ impl inFile {
         inFile {
             fileName: fileName.to_string(),
             attatchFile: false,
-            lineCnt: 0,
+            lineCnt: 1,
             currentCharIndex: 0,
             totalLines: 0,
             file: newFile,
@@ -863,10 +876,275 @@ impl Parser{
 
 
     //Parses an expressions and returns the Expr
-    fn parseExpr(&mut self, tokenList: &mut Vec<Token>) -> Result<Option<Expr>, String> {
-        println!("Parsing expression");
+    fn parseExpr(&mut self, tokenList: &mut Vec<Token>) -> Result<Expr, String> {
+        // println!("Parsing expression");
+
+
+        //Initializes the variable that is being referenced first
+        let mut varRef:Expr = Expr::StringLiteral(("NONE".to_string()));
+
+        //Initializes values for finding the end of the expression
+        let mut k = 0;
+        let mut nextTok = &tokenList[k];
+        let mut curStmt: Vec<Token> = vec![];
         
-        return(Ok(None));
+        //Finds the end of the expression
+        while k < tokenList.len() {
+            let nextTok = &tokenList[k];
+            curStmt.push(nextTok.clone());
+        
+            if (nextTok.tt == tokenTypeEnum::SEMICOLON){
+                break; // Stop loop when semicolon or parentheses is found
+            }
+        
+            k += 1;
+        }
+
+        // println!("Full statement:");
+        // printTokList(&curStmt);
+
+
+        //Checks if the first value is an array reference or not
+        if(curStmt[1].tt == tokenTypeEnum::L_BRACKET) {
+            // println!("Array reference found");
+            let varName = curStmt[0].tokenString.clone();
+            // let varRef = Expr::VarRef((varName));
+
+            //Finds the end of the brackets
+            let mut brackInd = 0;
+            let mut nextIndToken = &curStmt[brackInd];
+            let mut indexList: Vec<Token> = vec![];
+            
+            //Finds the end of the index statement
+            while brackInd < curStmt.len() {
+                let nextTok = &curStmt[brackInd];
+                indexList.push(nextTok.clone());
+            
+                if (nextTok.tt == tokenTypeEnum::R_BRACKET) {
+                    break; // Stop loop when semicolon or parentheses is found
+                }
+            
+                brackInd += 1;
+            }
+
+            //If the end of the index was not found, error
+            if brackInd == curStmt.len() {
+                println!("THIS IS AN ERROR in finding end of array index, add error and reporting");
+                tokenList.drain(..k+1);
+                let errMsg = format!("Error finding the end of the array index on line {}", curStmt[1].lineNum);
+                return(Err(errMsg));
+            }
+
+            //Removes the index assignment so there is just the ] left for proper parsing of index expression
+            indexList.drain(0..2);
+            // indexList.drain(indexList)
+
+
+            // println!("Here is the index list:");
+            // printTokList(&indexList);
+
+
+            let parsedExpr = self.parseExpr(&mut indexList);
+            let mut indexExpr: Expr;
+
+            //Extracts the resulting expression
+            match parsedExpr {
+                Ok(expr) => {
+                    indexExpr = expr;
+                }
+                Err(err) => {
+                    // println!("Error parsing expression");
+                    let errMsg = format!("Error on line {}: {}", tokenList[0].lineNum, err);
+                    self.reports.reportError(errMsg);
+                    return Err("Error with expression".to_string());
+                }
+            }
+
+            // println!("New value expressions: {}", newValueExpr);
+
+            let indexBox = Box::new(indexExpr);
+            varRef = Expr::ArrayRef((varName), (indexBox));
+
+            //Removes the array reference so there is just the ] left
+            curStmt.drain(0..brackInd);
+        } else if (curStmt[0].tg == tokenGroup::VARIABLE){
+            //If not an array
+            varRef = Expr::VarRef(curStmt[0].tokenString.clone());
+
+        } else if (curStmt[0].tt == tokenTypeEnum::L_PAREN) { 
+            // println!("Parentheses found!!!!");
+            let mut scope = 0;
+
+            //Initializes values for finding the end of the expression
+            let mut parenInd = 1;
+            // let mut nextParenTok = &curStmt[1];
+            let mut parStmt: Vec<Token> = vec![];
+            
+            //Finds the end of the expression
+            while parenInd < curStmt.len() {
+                let nextParenTok = &curStmt[parenInd];
+                parStmt.push(nextParenTok.clone());
+                
+                if (nextParenTok.tt == tokenTypeEnum::L_PAREN){
+                    scope += 1;
+                    // println!("Scope increase");
+                }
+
+                if (nextParenTok.tt == tokenTypeEnum::R_PAREN){
+                    if(scope != 0){
+                        // println!("Scope decrease");
+
+                        scope -= 1; //decrease scope if not the final
+                    } else {
+                        // println!("found the end");
+
+                        break; // Stop loop when final parentheses is found
+                    }
+                }
+            
+                parenInd += 1;
+            }
+
+            // println!("Final paren: {}", parStmt[parenInd - 1].tokenString);
+
+            parStmt[parenInd - 1].tokenString = ";".to_string();
+            parStmt[parenInd - 1].tt = tokenTypeEnum::SEMICOLON;
+            parStmt[parenInd - 1].tg = tokenGroup::SYMBOL;
+
+
+
+            let scanned = self.parseExpr(&mut parStmt);                            
+            match scanned {
+                Ok(stmt) => {
+                    varRef = stmt;
+                },
+                Err(reporting) => {
+                    println!("Error parsing paren expression: {:?}", reporting);
+                    let errMsg = format!("Error parsing paren expr: {:?}", self.reports);
+
+                    return Err(errMsg);
+                },
+            }
+            // println!("extracted paren statement:");
+            // printTokList(&parStmt);
+            // println!("Parsed paren expression: {}", varRef);
+
+
+
+            // varRef = Expr::IntLiteral((0));
+            curStmt.drain(..parStmt.len());
+
+        } else {
+            // println!("Expression first not a variable reference");
+            match &varRef {
+                Expr::StringLiteral(s) if s == "NONE" => {
+                    println!("Uninitializes varRef");
+                    let empty:Expr = Expr::StringLiteral(("NONE".to_string())); 
+                    let valRef = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
+                    match valRef {
+                        Ok(expr) => {
+                            varRef = expr;
+                        } Err(err) => {
+                            let errMsg = format!("error on line {}: {}", curStmt[0].lineNum.to_string(), err);
+                            return(Err(errMsg));
+                        }
+                    }
+                }
+                _ => {
+                    println!("Initialized");
+                }
+            }
+            
+            
+            
+        }
+
+
+        // println!("We are doing something with this value: {}", varRef);
+        // // // println!("First after variable: {}", curStmt[1].tokenString);
+        // println!("Remaining items: {}", curStmt.len().to_string());
+        // printTokList(&curStmt);
+
+        // match tokenList
+
+
+        if(curStmt.len() > 2){
+            // println!("Complex expression");
+
+            let operand1 = varRef;
+            let operatorRes = BinOp::new(curStmt[1].tt.clone());
+            let mut operator: BinOp;
+            match operatorRes {
+                Ok(op) => {
+                    operator = op;
+                },
+                Err(reporting) => {
+                    println!("Error parsing op: {:?}", reporting);
+                    println!("The fucked up guy in question: {}", curStmt[1].tokenString);
+                    let errMsg = format!("Error parsing operator on line {}: {:?}", curStmt[1].lineNum.to_string(), self.reports);
+                    return Err(errMsg);
+                },
+            }
+
+            let mut subList = curStmt.clone();
+            subList.drain(0..2); 
+            // println!("First token: {}", subList[0].tokenString);
+            let mut parsedExpr: Expr;
+            let scanned = self.parseExpr(&mut subList);                            
+            let mut headerStmt:Expr;
+            // let mut headerReporting = Reporting::new();
+            match scanned {
+                Ok(stmt) => {
+                    parsedExpr = stmt;
+                },
+                Err(reporting) => {
+                    println!("Error parsing expression TEST: {:?}", reporting);
+                    let errMsg = format!("Error parsing body: {:?}", self.reports);
+
+                    return Err(errMsg);
+                },
+            }
+
+            let op1Box = Box::new(operand1);
+            let op2Box = Box::new(parsedExpr);
+            let retExpr = Expr::BinOp((op1Box), (operator), (op2Box));
+            // println!("Expression parsed: {}", retExpr);
+            // let retStmt = Stmt::Assign(varName.to_string(), parsedExpr);
+            
+            // parsedStmt.display(0);
+            // tokenList.drain(0..k+1);
+            return Ok(retExpr);            
+        } else if (curStmt.len() == 2) {
+            // println!("Simple expressions");
+            
+            if(curStmt[0].tt == tokenTypeEnum::R_PAREN){
+                return(Ok(varRef));
+            }
+
+
+            let valueRes = Expr::new(tokenList[0].tt.clone(), Some(tokenList[0].tokenString.clone()));
+            let mut valueExpr:Expr; 
+            match valueRes {
+                Ok(expr) => {
+                    valueExpr = expr;
+                }
+                Err(err) => {
+                    println!("Error parsing expression");
+                    let errMsg = format!("Error on line {}: {}", tokenList[0].lineNum, err);
+                    self.reports.reportError(errMsg);
+                    return Err("Error with expression".to_string());
+                }
+            }
+
+            tokenList.drain(0..k);
+            return Ok(valueExpr);
+        } else {
+            // println!("ERROR: no expression to parse");
+            // return(Err("No expression to parse".to_string()));
+            return(Ok(varRef));
+        }
+
+        
     }
 
     fn parse(&mut self, tokenList: &mut Vec<Token>) -> Result<Option<Stmt>, String> {
@@ -990,7 +1268,7 @@ impl Parser{
                                     // headerReporting = reporting;
                                 },
                                 Ok((None)) => {
-                                    println!("Parsed body statement but no statement returned.");
+                                    // println!("Parsed body statement but no statement returned.");
                                     bodyI = bodyI + 1;
 
                                     // headerReporting = reporting;
@@ -1062,10 +1340,8 @@ impl Parser{
                 //Error checking
                 if curStmt[2].tt != tokenTypeEnum::COLON {
                     // println!("{}", curStmt[2].tokenString);
-                    self.reports.reportError(format!(
-                        "In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : [variable type]'", 
-                        curStmt[3].lineNum, 
-                    ));
+                    let errMsg = format!("In line: {}, Array variable declaration incorrect. \n Must be in this format: 'variable [Variable name] : [variable type]'", curStmt[3].lineNum,);
+                    self.reports.reportError(errMsg);
                     return Err("Error with variable declaration".to_string());
                 } else {
                     if (curStmt[4].tt != tokenTypeEnum::SEMICOLON) {
@@ -1250,38 +1526,150 @@ impl Parser{
             }
             
             tokenTypeEnum::IDENTIFIER => {
+                //Initializes the variable that is being referenced first
+                let mut varRef:Expr;
+                //Initializes the return statement (I DONT THINK THIS IS NEEDED)
                 let mut retStmt:Stmt;
-                
+
+                //Initializes values for finding the end of the expression
                 let mut k = 0;
                 let mut nextTok = &tokenList[k];
-                // println!("Found an identifier");
                 let mut curStmt: Vec<&Token> = vec![];
-                // curStmt.push(token);
+                
+                //Finds the end of the expression
                 while k < tokenList.len() {
                     let nextTok = &tokenList[k];
                     curStmt.push(nextTok);
                 
-                    if (nextTok.tt == tokenTypeEnum::SEMICOLON) || (nextTok.tt == tokenTypeEnum::R_PAREN) {
+                    if (nextTok.tt == tokenTypeEnum::SEMICOLON) {
                         break; // Stop loop when semicolon or parentheses is found
                     }
                 
                     k += 1;
                 }
 
-                //Looks ahead to see what comes next and parses accordingly
+
+                //Checks if the first value is an array reference or not
+                if(curStmt[1].tt == tokenTypeEnum::L_BRACKET) {
+                    // println!("Array reference found");
+                    let varName = curStmt[0].tokenString.clone();
+                    // let varRef = Expr::VarRef((varName));
+
+                    //Finds the end of the brackets
+                    let mut brackInd = 0;
+                    let mut nextIndToken = &curStmt[brackInd];
+                    let mut indexList: Vec<Token> = vec![];
+                    
+                    //Finds the end of the index statement
+                    while brackInd < curStmt.len() {
+                        let nextTok = curStmt[brackInd];
+                        indexList.push(nextTok.clone());
+                    
+                        if (nextTok.tt == tokenTypeEnum::R_BRACKET) {
+                            break; // Stop loop when semicolon or parentheses is found
+                        }
+                    
+                        brackInd += 1;
+                    }
+
+                    //If the end of the index was not found, error
+                    if brackInd == curStmt.len() {
+                        println!("THIS IS AN ERROR in finding end of array index, add error and reporting");
+                        tokenList.drain(..k+1);
+                        return(Ok(None));
+                    }
+
+                    //Removes the index assignment so there is just the ] left for proper parsing of index expression
+                    indexList.drain(0..2);
+                    // indexList.drain(indexList)
+
+
+                    // println!("Here is the index list:");
+                    // printTokList(&indexList);
+
+
+                    let parsedExpr = self.parseExpr(&mut indexList);
+                    let mut indexExpr: Expr;
+
+                    //Extracts the resulting expression
+                    match parsedExpr {
+                        Ok(expr) => {
+                            indexExpr = expr;
+                        }
+                        Err(err) => {
+                            // println!("Error parsing expression");
+                            let errMsg = format!("Error on line {}: {}", tokenList[0].lineNum, err);
+                            self.reports.reportError(errMsg);
+                            return Err("Error with expression".to_string());
+                        }
+                    }
+
+                    // println!("New value expressions: {}", newValueExpr);
+
+                    let indexBox = Box::new(indexExpr);
+                    varRef = Expr::ArrayRef((varName), (indexBox));
+
+                    //Removes the array reference so there is just the ] left
+                    curStmt.drain(0..brackInd);
+                } else if (curStmt[0].tg == tokenGroup::VARIABLE){
+                    //If not an array
+                    varRef = Expr::VarRef(curStmt[0].tokenString.clone());
+
+                } else {
+                    println!("Identifier but not a variable reference");
+                    varRef = Expr::StringLiteral(("Something has gone fucky with variables").to_string());
+                }
+
+
+                // println!("We are doing something with this variable: {}", varRef);
+                // println!("First after variable: {}", curStmt[1].tokenString);
+
+                // //Looks ahead to see what comes next and parses accordingly
                 match curStmt[1].tg {
                     tokenGroup::OPERATOR => {
-                        println!("OPERATOR");
+                        // println!("OPERATOR");
                         match curStmt[1].tt {
                             tokenTypeEnum::SET_EQUALS =>{
-                                println!("SET EQUALS");
+                                // println!("SET EQUALS");
+                                let varName = curStmt[0].tokenString.clone();
+
+                                let mut newValueList: Vec<Token> = curStmt.iter().cloned().map(|t| t.clone()).collect();
+
+
+
+                                // let mut newValueList = curStmt.clone();
+                                newValueList.drain(..2);
+
+                                // println!("Next token in set equal expression: {}", newValueList[0].tokenString);
+
+                                let parsedExpr = self.parseExpr(&mut newValueList);
+                                let mut newValueExpr: Expr;
+
+                                //Extracts the resulting expression
+                                match parsedExpr {
+                                    Ok(expr) => {
+                                        newValueExpr = expr;
+                                    }
+                                    Err(err) => {
+                                        // println!("Error parsing expression");
+                                        let errMsg = format!("Error on line {}: {}", tokenList[0].lineNum, err);
+                                        self.reports.reportError(errMsg);
+                                        return Err("Error with expression".to_string());
+                                    }
+                                }
+                                
+                                // println!("New value expressions: {}", newValueExpr);
+
+                                let varAssignment = Stmt::Assign((varRef), (newValueExpr));
+                                tokenList.drain(..k+1);
+                                return Ok(Some(varAssignment));
                             }
                             _ => {
                                 println!("Other");
+                                println!("Unknown operator: {}", curStmt[1].tokenString);
                             }
                         }
                         
-                        return Ok(None);
 
                     }
                     tokenGroup::NUMBER => {
@@ -1293,21 +1681,26 @@ impl Parser{
                         println!("SYMBOL");
                         match curStmt[1].tt {
                             tokenTypeEnum::L_BRACKET =>{
-                                println!("ARRAY REFERENCE FOUND");
+                                
+
+
+
                             }
                             _ => {
                                 println!("Other symbol");
                             }
                         }
                         
-                        return Ok(None);
 
                     }
                     _ => {
                         println!("UNACCOUNTED IN MATCH CASE");
-                        return Ok(None);
                     }
                 }
+            
+                tokenList.drain(..k+1);
+                return Ok(None);
+                
             }
             
             
@@ -1582,9 +1975,6 @@ impl Parser{
                     return Ok(Some(retStmt));
                 }
             }
-
-
-
             tokenTypeEnum::FOR => {
                 //Finds the end of the FOR statement
                 let mut k = 0;
@@ -1609,7 +1999,7 @@ impl Parser{
                     nextTok = &tokenList[k];
                 }
 
-                println!("ENDFOR found");
+                // println!("ENDFOR found");
 
                 curStmt.push(nextTok.clone());
 
@@ -1623,7 +2013,7 @@ impl Parser{
                     let mut nextTok = &curStmt[j];
                     let mut condStmt: Vec<Token> = vec![];
                 
-                    // Finds the end of the condition by findind the then
+                    // Finds the end of the condition by findind the paren
                     while nextTok.tt != tokenTypeEnum::R_PAREN {
                         condStmt.push(nextTok.clone());
                         j = j + 1;
@@ -1685,26 +2075,10 @@ impl Parser{
                     // println!("Remaining condition tokens:");
                     // printTokList(&condStmt);
 
-                    let scanned = self.parse(&mut condStmt);                            
+                    let scanned = self.parseExpr(&mut condStmt);                            
                     match scanned {
-                        Ok((Some(stmt))) => {
-                            let parsed = stmt.extractExpr();
-                            match parsed {
-                                Ok(expr) => {
-                                    forCond = expr;
-                                },
-                                Err(err) => {
-                                    // println!("Error parsing for condition: {:?}", err);
-                                    let errMsg = format!("Error parsing for condition: {}", err);
-                                    self.reports.reportError(errMsg);
-                                    return Err("Error with for condition".to_string());
-                                }
-                            }
-                        },
-                        Ok((None)) => {
-                            println!("Parsed for condition expression but no statement returned.");
-                            // parsedStmt = Stmt::StringLiteral("None".to_string());
-                            return Ok(None);
+                        Ok((stmt)) => {
+                            forCond = stmt;
                         },
                         Err(err) => {
                             // println!("Error parsing for condition: {:?}", err);
@@ -1739,10 +2113,10 @@ impl Parser{
                 forList.drain(newForLen..);             
 
 
-                println!("Remaining for list:");
-                printTokList(&forList);
+                // println!("Remaining for list:");
+                // printTokList(&forList);
 
-                println!("test1");
+                // println!("test1");
                 let mut newFor: Vec<Token> = forList.iter().cloned().map(|t| t.clone()).collect();
                 let mut forBlock = Stmt::Block(Vec::new());
                 let mut ifI = 0;
@@ -1761,8 +2135,8 @@ impl Parser{
                     match scanned {
                         Ok((Some(stmt))) => {
                             // println!("Header statement parsed successfully");
-                            println!("Found for body statement");
-                            stmt.display(0);
+                            // println!("Found for body statement");
+                            // stmt.display(0);
 
                             let _ = forBlock.push_to_block(stmt.clone());
                             // let _ = headerStmt = stmt;
@@ -1800,17 +2174,11 @@ impl Parser{
 
                 // println!("Next token after for: {}", tokenList[0].tokenString);
 
-                println!("for returned");
+                // println!("for returned");
 
 
                 return Ok(Some(retStmt));
             }
-
-
-
-
-
-
             tokenTypeEnum::PROCEDURE => {
                 //Finds the end of the procedure
                 let mut retStmt:Stmt;
@@ -2129,7 +2497,7 @@ impl Parser{
                     let retValue = Expr::VarRef(tokenList[1].tokenString.clone());
                     let retStmt = Stmt::Return(retValue);
                     tokenList.drain(0..3);
-                    println!("first one return");
+                    // println!("first one return");
 
 
                     return(Ok(Some(retStmt)));
@@ -2138,7 +2506,7 @@ impl Parser{
                     let retStmt = Stmt::Return(retValue);
                     // let _ = newBlock.push_to_block(retStmt);
                     tokenList.drain(0..3);
-                    println!("else return");
+                    // println!("else return");
 
                     return(Ok(Some(retStmt)));
                 }
@@ -2316,7 +2684,7 @@ impl Parser{
                     println!("Fucked up expressions");
                         // println!("{}", curStmt[1].tt);
                         self.reports.reportError(format!(
-                            "In line: {}, expression is too short'", curStmt[3].lineNum));
+                            "In line: {}, expression is too short'", curStmt[1].lineNum));
                         return Err("Error with expression".to_string());
                 }
             }
@@ -2365,6 +2733,8 @@ impl Parser{
                         Err(err) => {
                             println!("Error parsing operand 2");
                             let errMsg = format!("Error with operand 2 on line {}: {}", curStmt[0].lineNum, err);
+                            
+                            // let errMsg = format!("Error with operand 2 on line {}: {}", curStmt[0].lineNum, err);
                             self.reports.reportError(errMsg);
                             return Err("Error with operand 2".to_string());
                         }
@@ -2378,7 +2748,7 @@ impl Parser{
                         }
                         Err(err) => {
                             println!("Error creating expression");
-                            let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
+                            let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);                            
                             self.reports.reportError(errMsg);
                             return Err("Error with operator".to_string());
                         }
@@ -2403,7 +2773,9 @@ impl Parser{
                         }
                         Err(err) => {
                             println!("Error parsing operand 1");
-                            let errMsg = format!("Error with operand 1 on line {}: {}", curStmt[0].lineNum, err);
+                            let errMsg = format!("Error with operand1 on line {}: {}", curStmt[0].lineNum, err);                            
+                            
+                            // let errMsg = format!("Error with operand 1 on line {}: {}", curStmt[0].lineNum, err);
                             self.reports.reportError(errMsg);
                             return Err("Error with operand 1".to_string());
                         }
@@ -2417,35 +2789,35 @@ impl Parser{
 
                     let mut parsedExpr: Expr;
                     let scanned = self.parse(&mut subList);                            
-                        let mut headerStmt:Expr;
-                        // let mut headerReporting = Reporting::new();
-                        match scanned {
-                            Ok((Some(stmt))) => {
-                                let parsed = stmt.extractExpr();
-                                match parsed {
-                                    Ok(expr) => {
-                                        parsedExpr = expr
-                                    },
-                                    Err(msg) => {
-                                        println!("Error parsing expression from statment");
-                                        let errMsg = format!("Error parsing body: {:?}", self.reports);
-                                        parsedExpr = Expr::IntLiteral(0);
-                                    }
+                    let mut headerStmt:Expr;
+                    // let mut headerReporting = Reporting::new();
+                    match scanned {
+                        Ok((Some(stmt))) => {
+                            let parsed = stmt.extractExpr();
+                            match parsed {
+                                Ok(expr) => {
+                                    parsedExpr = expr
+                                },
+                                Err(msg) => {
+                                    println!("Error parsing expression from statment");
+                                    let errMsg = format!("Error parsing body {:?}", self.reports);                            
+                                    parsedExpr = Expr::IntLiteral(0);
                                 }
-                                            
-                                
-                            },
-                            Ok((None)) => {
-                                println!("Parsed complex expression but no statement returned.");
-                                parsedExpr = Expr::IntLiteral(0);
-                            },
-                            Err(reporting) => {
-                                println!("Error parsing expression: {:?}", reporting);
-                                let errMsg = format!("Error parsing body: {:?}", self.reports);
+                            }
+                                        
+                            
+                        },
+                        Ok((None)) => {
+                            println!("Parsed complex expression but no statement returned.");
+                            parsedExpr = Expr::IntLiteral(0);
+                        },
+                        Err(reporting) => {
+                            println!("Error parsing expression: {:?}", reporting);
+                            let errMsg = format!("Error parsing body: {:?}", self.reports);
 
-                                return Err(errMsg);
-                            },
-                        }
+                            return Err(errMsg);
+                        },
+                    }
                     // println!("Expression parsed: {}", parsedExpr);
                     let op2Expr = parsedExpr;
                     // println!("Operand 2: {}", op2Expr);
@@ -2558,12 +2930,15 @@ impl fmt::Display for BinOp {
 // Define types of expressions
 #[derive(Debug, Clone)]
 pub enum Expr {
-    IntLiteral(i64),
-    FloatLiteral(f64),
-    StringLiteral(String),
-    VarRef(String),
-    ArrayRef(String, i32),
-    BinOp(Box<Expr>, BinOp, Box<Expr>),
+    IntLiteral(i64),                        //An integer literal (int value)
+    FloatLiteral(f64),                      //A float literal (float value)
+    StringLiteral(String),                  //A string literal (the string)
+    VarRef(String),                         //A reference to a variable (variable name)
+    ArrayRef(String, Box<Expr>),            //A reference to an array index (array name, Box of the index value)
+                                            //                               This is a box because it can be an intliteral or BinOp
+
+    BinOp(Box<Expr>, BinOp, Box<Expr>),     //A binary Operation, (Operand 1, an instance of the BinOp enum, Operand 2)
+                                            //                      These are boxes because they can contain more BinOps within themselves     
     // ArrayAssign(Box<Expr>, Box<Expr>),
     
 }
@@ -2613,7 +2988,7 @@ impl fmt::Display for Expr {
             Expr::FloatLiteral(n) => write!(f, "{}", n),
             Expr::BinOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
             Expr::VarRef(var) => write!(f, "{}", var),
-            Expr::ArrayRef(var, index) => write!(f, "({} {})", var, index),
+            Expr::ArrayRef(var, index) => write!(f, "({}[{}])", var, index),
         }
     }
 }
@@ -2660,8 +3035,7 @@ impl fmt::Display for VarType {
 pub enum Stmt {
     StringLiteral(String),
     Expr(Expr),                     // Expression statement
-    Assign(String, Expr),           // Assignment statement: variable name, expression
-    ArrayAssign(String, i32, Expr), // Array assignment statement: Variable name, index, expression
+    Assign(Expr, Expr),           // Assignment statement: variable refernce, expression to assign to
     VarDecl(String, VarType),       // Variable declaration statement
     GlobVarDecl(String, VarType),       // Variable declaration statement
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),  // If statement: condition, body, optional else body
@@ -2672,7 +3046,7 @@ pub enum Stmt {
     Return(Expr),
     Program(String, Box<Stmt>, Box<Stmt>), //The program AST: Name, the statements
     Procedure(VarType, String, Box<Stmt>, Box<Stmt>, Box<Stmt>), //Procedure AST: type, Name, parameter, Header, body
-
+    ProcCall(String, Option<Box<Stmt>>),    //Procedure calls: the name of the procedure, an optional box of a Block of Exprs for the parameters 
 }
 
 
@@ -2695,7 +3069,7 @@ impl Stmt {
             Stmt::Expr(expr) => println!("{}Expr({})", indentation, expr),
             Stmt::Assign(var, expr) => println!("{}Assign({}, {})", indentation, var, expr),
             
-            Stmt::ArrayAssign(var, index, expr) => println!("{}Index Assign({}[{}], {})", indentation, var, index, expr),
+            // Stmt::ArrayAssign(var, index, expr) => println!("{}Index Assign({}[{}], {})", indentation, var, index, expr),
             
             
             Stmt::VarDecl(var, vartype) => println!("{}VarDecl({}, {})", indentation, var, vartype),
@@ -2917,7 +3291,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut myParser = Parser::new(&mut myLexer);
 
 
-    // // Print the parser's token list
+    // Print the parser's token list
     // println!("\n\nMy parser token list: ");
     // myParser.printTokenList();
 

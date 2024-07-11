@@ -5,32 +5,22 @@ variable tmp2 : float;  //this variable will be hidden by the declaration in Fib
 variable out : bool;
 variable myArray : integer[15];
 
-procedure Fib : integer(variable test: string, variable val : integer)
-    variable tmp1 : integer;
-    variable tmp2 : integer;
-    variable ret : integer;
-	begin
-	val := val - 1;
-	val := val - 1;
-	ret := tmp1 + tmp2;
-	return ret;
-end procedure;
-
-
 
 begin
 
-i:= 1110;
+i[4] := 10;
+i[3] := -1;
 
-if(val == 1) then
-    ret := 1;
-else
-    ret := 3;
-end if;
+i:= 1110 + 1;
+i:= 9 + (1 + (5 + x)) + (x + 1);
 
-i := i / 1;
+for(loopVal := 0; loopVal <= val)
+    ret := tmp[0] + tmp[1];
+    tmp[0] := tmp[1];
+    tmp[1] := ret;
+    loopVal := loopVal + 1;
+end for;
 
-i := i + 1 * 5 / 6;
 
 
 

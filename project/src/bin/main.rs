@@ -281,6 +281,7 @@ impl Lexer{
                 // println!("Comment line found");
                 while let Some(c) = currChar {
                     if c == '/' {
+                        // println!("scope +1 nested");
                         currChar = self.inputFile.getChar();
                         let Some(ch) = currChar else { todo!() };
                         if ch == '*' {
@@ -294,11 +295,18 @@ impl Lexer{
                             nested -= 1;
                             if nested == 0 {
                                 currChar = self.inputFile.getChar();
+                                // println!("End of nested comment");
                                 break;
                             } else {
                                 currChar = self.inputFile.getChar();
+                                // println!("Not end of internal nested comment");
                             }
                         }
+                    } else if c == '\n' {
+                        self.inputFile.incLineCnt();
+                        currChar = self.inputFile.getChar();
+
+                          
                     } else {
                         currChar = self.inputFile.getChar();
                     }
@@ -322,7 +330,7 @@ impl Lexer{
                 let mut tokType: tokenTypeEnum = tokenTypeEnum::WORD;
                 //Iterates through until it stops finding numbers
                 while let Some(numC) = currChar {
-                    if (numC.is_ascii_alphabetic() || numC.is_ascii_digit())  {
+                    if (numC.is_ascii_alphabetic() || numC.is_ascii_digit() || numC == '_')  {
                         tokenString.push(numC);
                         currChar = self.inputFile.getChar();
                     } else {
@@ -330,6 +338,7 @@ impl Lexer{
                     }
                 }
                 self.inputFile.unGetChar();
+                tokenString = tokenString.to_ascii_lowercase();
                 let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
                 newToken.lineNum = self.inputFile.lineCnt.to_string();
                 //let newToken: Token = Token::new(tokType,tokenString, self.inputFile.lineCnt.to_string());
@@ -498,38 +507,12 @@ impl Lexer{
                 tokenString.push('-');
                 let mut nextNextChar = self.inputFile.getChar();
                 let Some(nextC) = nextNextChar else { todo!() };
-                if nextC.is_ascii_digit() {
-                    // println!("Found a neg number");
-                    tokenString.push(nextC);
-                    let mut tokType: tokenTypeEnum = tokenTypeEnum::INT;
-                    //Iterates through until it stops finding numbers
-                    while let Some(numC) = currChar {
-                        if numC.is_ascii_digit() {
-                            tokenString.push(numC);
-                            currChar = self.inputFile.getChar();
-                        //If the number has a decimal, meaning its a float
-                        } else if numC == '.' {
-                            tokenString.push('.');
-                            tokType = tokenTypeEnum::FLOAT;
-                            currChar = self.inputFile.getChar();
-                        } else {
-                            // self.inputFile.unGetChar();
-                            break;
-                        }
-                    }
-                    let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
-                    newToken.lineNum = self.inputFile.lineCnt.to_string();
-                    if newToken.tt != tokType {
-                        newToken.tt = tokType;
-                    }
-                    //let newToken: Token = Token::new(tokType,tokenString, self.inputFile.lineCnt.to_string());
-                    return newToken;
-                } else {
-                    // println!("This is just a -");
-                    self.inputFile.unGetChar();
-                    let newToken = Token::new(crate::tokenTypeEnum::MINUS,tokenString, self.inputFile.lineCnt.to_string(), tokenGroup::OPERATOR);
-                    return newToken;
-                }
+                
+                // println!("This is just a -");
+                self.inputFile.unGetChar();
+                let newToken = Token::new(crate::tokenTypeEnum::MINUS,tokenString, self.inputFile.lineCnt.to_string(), tokenGroup::OPERATOR);
+                return newToken;
+                
             }
 
             Some('*') => {
@@ -656,6 +639,31 @@ impl Lexer{
                         newTokList.push(newToken.clone());
                         i = i + 1;
                     } else {
+                        // println!("other end with type: {}", nextToken.tt);
+                        newTokList.push(token.clone());
+
+                    }
+                }
+                tokenTypeEnum::UNACCOUNTED => {
+                    println!("Skipping unaccounted");
+                    println!("Unaccounted: {}", token.tokenString);
+                    let nextToken = &self.tokenList[i+1];
+                    println!("Next token: {}", nextToken.tokenString);
+                    newTokList.push(nextToken.clone());
+                    i = i + 1;
+                }
+                tokenTypeEnum::MINUS => {
+                    let nextToken = &self.tokenList[i+1];
+                    let prevToken = &self.tokenList[i-1];
+                    if (nextToken.tg == tokenGroup::VARIABLE) && (prevToken.tg == tokenGroup::OPERATOR) {
+                        // println!("Found a neg number");
+                        let newString = format!("-{}", nextToken.tokenString.clone());
+                        let newToken = Token::new(nextToken.tt.clone(), newString, nextToken.lineNum.to_string(), tokenGroup::NUMBER);
+                        newTokList.push(newToken.clone());
+                        i = i + 1;
+                    } else {
+                        // println!("Just a minus");
+                        // println!("Previous group: {} nextGrou: {} nextString: {}", prevToken.tg, nextToken.tg, nextToken.tokenString);
                         // println!("other end with type: {}", nextToken.tt);
                         newTokList.push(token.clone());
 
@@ -1045,6 +1053,7 @@ impl Parser{
                 println!("There are params");
                 let mut paramInd = 0;
                 let mut params: Vec<Expr> = Vec::new();
+                let mut paramTokens: Vec<Token> = Vec::new();
                 let mut p = 1;
                 let mut pToken;
                 while p < curStmt.len() {
@@ -1052,26 +1061,55 @@ impl Parser{
                     if(pToken.tt == tokenTypeEnum::R_PAREN) {
                         break;
                     }
-                    let paramExpr = Expr::new(pToken.tt.clone(), Some(pToken.tokenString.clone()));
-                    match paramExpr{
-                        Ok(expr) => {
-                            params.push(expr);
-                            p += 1;
-                        }
-                        _ => {
-                            println!("Something wrong with parameter");
-                            p += 1;
-                        }
+
+                    paramTokens.push(pToken.clone());
+                    p += 1;
+                    
+                    // let paramExpr = Expr::new(pToken.tt.clone(), Some(pToken.tokenString.clone()));
+                    // match paramExpr{
+                    //     Ok(expr) => {
+                    //         params.push(expr);
+                    //         p += 1;
+                    //     }
+                    //     _ => {
+                    //         println!("Something wrong with parameter");
+                    //         p += 1;
+                    //     }
+                    // }
+                }
+                paramTokens.push(curStmt[p].clone());
+
+
+                // println!("Param tokens:");
+                // printTokList(&paramTokens);
+                // let mut paramListI = 0;
+
+                // while(paramListI < paramTokens.len()){
+                //     let mut curParam: Vec<Token> = Vec::new();
+                //     let mut curParamToken = paramTokens[paramListI].clone();
+                //     while (curParamToken.tt != tokenTypeEnum::COMMA) || (curParamToken.tt != tokenTypeEnum::R_PAREN){
+                //         curParam.push(curParamToken);
+                //     }
+                // }
+
+                let paramScan = self.parseExpr(&mut paramTokens);
+                // let parmExpr: Expr;
+                match paramScan {
+                    Ok(expr)=> {
+                        params.push(expr);
+                    } Err(err) => {
+                        return(Err(err));
                     }
                 }
 
-                // println!("Extracted parameters:");
-                // for param in params.clone(){
-                //     println!("{}", param);
-                // }
-                let procCall = Expr::ProcCall((procName), (Some(params.clone())));
+                println!("Extracted parameters:");
+                for param in params.clone(){
+                    println!("{}", param);
+                }
+                let procCall = Expr::ProcCall((procName), (Some(params)));
+                
                 varRef = procCall;
-                curStmt.drain(0..p);
+                curStmt.drain(0..p+1);
 
 
             } else {
@@ -1127,7 +1165,7 @@ impl Parser{
                     operator = op;
                 },
                 Err(reporting) => {
-                    println!("Error parsing op: {:?}", reporting);
+                    println!("Error parsing op on line {}: {:?}",curStmt[1].lineNum, reporting);
                     println!("The fucked up guy in question: {}", curStmt[1].tokenString);
                     let errMsg = format!("Error parsing operator on line {}: {:?}", curStmt[1].lineNum.to_string(), self.reports);
                     return Err(errMsg);
@@ -1777,7 +1815,8 @@ impl Parser{
 
                     }
                     _ => {
-                        println!("UNACCOUNTED IN MATCH CASE");
+                        println!("UNACCOUNTED IN MATCH CASE: {}, {} on line {}", curStmt[1].tokenString, curStmt[1].tg, curStmt[1].lineNum);
+
                     }
                 }
             
@@ -1814,7 +1853,7 @@ impl Parser{
 
                 let mut condInt;
 
-                println!("TEST");
+                // println!("TEST");
 
                 let mut ifCondition: Expr;
                 // // Extract the condition if it exists
@@ -1847,7 +1886,7 @@ impl Parser{
                     // let mut headerReporting = Reporting::new();
                     match scanned {
                         Ok(stmt) => {
-                            println!("PARSED EXPRESSIONS: {}", stmt);                         
+                            // println!("PARSED EXPRESSIONS: {}", stmt);                         
                             parsedExpr = stmt;   
                         },
                         Err(err) => {
@@ -1867,7 +1906,7 @@ impl Parser{
                 }
 
                 // println!("\n\nIf Condition: {}", ifCondition);
-                println!("TEST1");
+                // println!("TEST1");
 
 
                 //Checks for an else statement
@@ -2255,21 +2294,28 @@ impl Parser{
                 let mut retStmt:Stmt;
                 
                 let mut k = 1;
-                let mut nextTok = &tokenList[k];
+                let mut nextTok = &tokenList[1];
+                // println!("THE GUY: {}", tokenList[1].tokenString);
                 let mut scope = 0;
                 // println!("Found a variable token");
                 let mut curStmt: Vec<Token> = vec![];
                 // println!("First procedure token: {}", nextTok.tokenString);
                 curStmt.push(token.clone());
-                while (nextTok.tt != tokenTypeEnum::END_PROCEDURE) || (scope != 0) {
+                while (k < tokenList.len()) {
                     if(nextTok.tt == tokenTypeEnum::PROCEDURE){
-                        // println!("PROCEDURE");
+                        // println!("increasing procedure scope");
                         scope = scope + 1;
-                    } else if ((nextTok.tt == tokenTypeEnum::END_PROCEDURE) && (scope != 1)){
-                        scope = scope - 1;
-                        // println!("end procedure");
+                    } else if ((nextTok.tt == tokenTypeEnum::END_PROCEDURE)){
+                        if(scope != 0){
+                            scope = scope - 1;
+                            // println!("end procedure, decreasing scope");
+                        } else {
+                            // println!("End of procedure");
+                            break;
+                        }
+                        
 
-                    }
+                    } 
                     curStmt.push(nextTok.clone());
                     k = k + 1;
                     nextTok = &tokenList[k];
@@ -2460,7 +2506,7 @@ impl Parser{
 
                         
 
-                println!("begin index: {}", beginInt);
+                // println!("begin index: {}", beginInt);
 
                 //Splits into two lists to parse seperately
                 let mut bodyList = curStmt.split_off(beginInt);
@@ -2569,13 +2615,57 @@ impl Parser{
 
             tokenTypeEnum::RETURN => {
                 if tokenList[1].tt != tokenTypeEnum::SEMICOLON {
-                    let retValue = Expr::VarRef(tokenList[1].tokenString.clone());
-                    let retStmt = Stmt::Return(retValue);
-                    tokenList.drain(0..3);
-                    // println!("first one return");
+                    //Initializes the variable that is being referenced first
+                let mut varRef:Expr;
+                //Initializes the return statement (I DONT THINK THIS IS NEEDED)
+                let mut retStmt:Stmt;
+
+                //Initializes values for finding the end of the expression
+                let mut k = 0;
+                let mut nextTok = tokenList[k].clone();
+                let mut curStmt: Vec<Token> = vec![];
+                
+                //Finds the end of the expression
+                while k < tokenList.len() {
+                    let nextTok = &tokenList[k];
+                    curStmt.push(nextTok.clone());
+                
+                    if (nextTok.tt == tokenTypeEnum::SEMICOLON) {
+                        break; // Stop loop when semicolon or parentheses is found
+                    }
+                
+                    k += 1;
+                }
+
+                curStmt.drain(0..1);
+
+                if(curStmt[0].tt == tokenTypeEnum::L_PAREN){
+                    curStmt.drain(0..1);
+                    curStmt.remove(curStmt.len() - 2);
+                    
+                }
+
+                println!("The expression being parsed for return");
+                printTokList(&curStmt);
+
+                let scanExpr = self.parseExpr(&mut curStmt);
+                let retExpr: Expr;
+                match scanExpr {
+                    Ok(expr) => {
+                        // println!("The parsed return expression: {}", expr);
+                        retExpr = expr;
+                    }
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
 
 
-                    return(Ok(Some(retStmt)));
+                let retVal = Stmt::Return((retExpr));
+                // println!("The next token after return: {}", tokenList[k].tokenString);
+
+                tokenList.drain(..k+1);
+                return Ok(Some(retVal));
                 } else {
                     let retValue = Expr::VarRef("".to_string());
                     let retStmt = Stmt::Return(retValue);
@@ -2939,7 +3029,7 @@ impl Parser{
             _ => {
                 // i = i + 1;
                 // return(Ok());
-                println!("Unaccounted token: {}", token.tokenString);
+                println!("Unaccounted token: '{}' on line: {}", token.tokenString, token.lineNum);
                 tokenList.drain(0..1);
                 return Ok((None));
 

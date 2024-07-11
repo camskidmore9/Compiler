@@ -6,7 +6,6 @@ variable max : integer;
 variable out: bool;
 
 procedure Fib : integer(variable val :integer)
-
 	procedure Sub : integer(variable val1 : integer)
 		begin
 			return val1 - 1;

@@ -107,6 +107,8 @@ pub enum tokenTypeEnum{
     COMMA,
     FOR,
 
+    PROCEDURE_CALL,
+
     
     
 }
@@ -159,6 +161,8 @@ impl fmt::Display for tokenTypeEnum {
             tokenTypeEnum::COMMA => "COMMA",
             tokenTypeEnum::END_FOR => "END_FOR",
             tokenTypeEnum::FOR => "FOR",
+            tokenTypeEnum::PROCEDURE_CALL => "PROCEDURE_CALL",
+
             // tokenTypeEnum::OPERATOR => "OPERATOR",
 
 
@@ -644,19 +648,19 @@ impl Lexer{
 
                     }
                 }
-                // tokenTypeEnum::R_PAREN => {
-                //     let nextToken = &self.tokenList[i+1];
-                //     if nextToken.tt == tokenTypeEnum::SEMICOLON {
-                //         // println!("Combining end and if");
-                //         let newToken = Token::new(crate::tokenTypeEnum::SEMICOLON,";".to_string(), nextToken.lineNum.to_string(), tokenGroup::SYMBOL);
-                //         newTokList.push(newToken.clone());
-                //         i = i + 1;
-                //     } else {
-                //         // println!("other end with type: {}", nextToken.tt);
-                //         newTokList.push(token.clone());
+                tokenTypeEnum::IDENTIFIER => {
+                    let nextToken = &self.tokenList[i+1];
+                    if nextToken.tt == tokenTypeEnum::L_PAREN {
+                        // println!("Combining end and if");
+                        let newToken = Token::new(crate::tokenTypeEnum::PROCEDURE_CALL, token.tokenString.clone(), nextToken.lineNum.to_string(), tokenGroup::SYMBOL);
+                        newTokList.push(newToken.clone());
+                        i = i + 1;
+                    } else {
+                        // println!("other end with type: {}", nextToken.tt);
+                        newTokList.push(token.clone());
 
-                //     }
-                // }
+                    }
+                }
                 _ => {
                     // Handle other token types
                     newTokList.push(token.clone());
@@ -1034,7 +1038,51 @@ impl Parser{
             // varRef = Expr::IntLiteral((0));
             curStmt.drain(..parStmt.len());
 
-        } else {
+        } else if (curStmt[0].tt == tokenTypeEnum::PROCEDURE_CALL) {
+            println!("Procedure call");
+            let procName = curStmt[0].tokenString.clone();
+            if (curStmt[1].tt != tokenTypeEnum::R_PAREN) {
+                println!("There are params");
+                let mut paramInd = 0;
+                let mut params: Vec<Expr> = Vec::new();
+                let mut p = 1;
+                let mut pToken;
+                while p < curStmt.len() {
+                    pToken = curStmt[p].clone();
+                    if(pToken.tt == tokenTypeEnum::R_PAREN) {
+                        break;
+                    }
+                    let paramExpr = Expr::new(pToken.tt.clone(), Some(pToken.tokenString.clone()));
+                    match paramExpr{
+                        Ok(expr) => {
+                            params.push(expr);
+                            p += 1;
+                        }
+                        _ => {
+                            println!("Something wrong with parameter");
+                            p += 1;
+                        }
+                    }
+                }
+
+                // println!("Extracted parameters:");
+                // for param in params.clone(){
+                //     println!("{}", param);
+                // }
+                let procCall = Expr::ProcCall((procName), (Some(params.clone())));
+                varRef = procCall;
+                curStmt.drain(0..p);
+
+
+            } else {
+                println!("No params");
+                let procCall = Expr::ProcCall((procName), (None));
+                varRef = procCall;
+                curStmt.drain(0..1);
+            }
+        }
+        
+        else {
             // println!("Expression first not a variable reference");
             match &varRef {
                 Expr::StringLiteral(s) if s == "NONE" => {
@@ -1630,7 +1678,6 @@ impl Parser{
                         // println!("OPERATOR");
                         match curStmt[1].tt {
                             tokenTypeEnum::SET_EQUALS =>{
-                                // println!("SET EQUALS");
                                 let varName = curStmt[0].tokenString.clone();
 
                                 let mut newValueList: Vec<Token> = curStmt.iter().cloned().map(|t| t.clone()).collect();
@@ -1663,6 +1710,14 @@ impl Parser{
                                 let varAssignment = Stmt::Assign((varRef), (newValueExpr));
                                 tokenList.drain(..k+1);
                                 return Ok(Some(varAssignment));
+
+                            }
+                            tokenTypeEnum::L_PAREN => {
+                                println!("Procedure call");
+
+                                tokenList.drain(..k+1);
+                                return(Ok(None));
+
                             }
                             _ => {
                                 println!("Other");
@@ -1979,7 +2034,7 @@ impl Parser{
                 //Finds the end of the FOR statement
                 let mut k = 0;
                 let mut nextTok = &tokenList[k];
-                println!("\n\nFound a for");
+                // println!("\n\nFound a for");
                 let mut curStmt: Vec<Token> = vec![];
                 let mut forInd = 0;
                 let forLen = tokenList.len();
@@ -2176,7 +2231,7 @@ impl Parser{
 
                 // println!("for returned");
 
-
+                // println
                 return Ok(Some(retStmt));
             }
             tokenTypeEnum::PROCEDURE => {
@@ -2230,12 +2285,16 @@ impl Parser{
 
                 let mut paramList = Stmt::Block(Vec::new());
                 
-                let mut j = 5;
+                let mut j = 4;
                 //Finds and extracts the parameters
-                if(curStmt[4].tt != tokenTypeEnum::L_PAREN){
-                    println!("Not parentheses: {}", &curStmt[4].tt);
+                if(curStmt[3].tt != tokenTypeEnum::PROCEDURE_CALL){
+                    let errMsg = format!("Invalid procedure declaration: {} on line {}", &curStmt[4].tt, &curStmt[4].lineNum);
+                    println!("{}, {}", curStmt[4].tokenString, curStmt[4].tt);
+                    
+
+
                     println!("WRITE REPORTING FOR L PAREN PROCEDURE");
-                    return Err("5th in procedure not (".to_string());
+                    return Err(errMsg);
                 } else {
                     let mut nextTok = &curStmt[j];
                     let mut paramTokens: Vec<Token> = vec![];
@@ -2855,7 +2914,11 @@ impl Parser{
                     return Err("Error with expression".to_string());
                 }
             }
-            
+            tokenTypeEnum::PROCEDURE_CALL => {
+                println!("PROCEDURE CALL");
+                tokenList.drain(0..1);
+                return Ok((None));
+            }
             
             _ => {
                 // i = i + 1;
@@ -2940,6 +3003,8 @@ pub enum Expr {
     BinOp(Box<Expr>, BinOp, Box<Expr>),     //A binary Operation, (Operand 1, an instance of the BinOp enum, Operand 2)
                                             //                      These are boxes because they can contain more BinOps within themselves     
     // ArrayAssign(Box<Expr>, Box<Expr>),
+    ProcCall(String, Option<Vec<Expr>>),    //Procedure calls: the name of the procedure, an optional box of a Block of Exprs for the parameters 
+
     
 }
 
@@ -2989,6 +3054,11 @@ impl fmt::Display for Expr {
             Expr::BinOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
             Expr::VarRef(var) => write!(f, "{}", var),
             Expr::ArrayRef(var, index) => write!(f, "({}[{}])", var, index),
+            Expr::ProcCall(name, Some(params)) => {
+                let params_str = params.iter().map(|expr| format!("{}", expr)).collect::<Vec<_>>().join(", ");
+                write!(f, "{}({})", name, params_str)
+            },
+            Expr::ProcCall(name, None) => write!(f, "{}()", name),
         }
     }
 }
@@ -3046,7 +3116,6 @@ pub enum Stmt {
     Return(Expr),
     Program(String, Box<Stmt>, Box<Stmt>), //The program AST: Name, the statements
     Procedure(VarType, String, Box<Stmt>, Box<Stmt>, Box<Stmt>), //Procedure AST: type, Name, parameter, Header, body
-    ProcCall(String, Option<Box<Stmt>>),    //Procedure calls: the name of the procedure, an optional box of a Block of Exprs for the parameters 
 }
 
 
@@ -3115,6 +3184,11 @@ impl Stmt {
                 body.display(indent + 1);
                 println!("{})", indentation);
             }
+
+
+            
+            
+
             Stmt::Procedure(procType, name, params, header, body) => {
                 println!("{}{} {}:(", indentation,procType,name);
                 println!(" {}Params:",indentation);

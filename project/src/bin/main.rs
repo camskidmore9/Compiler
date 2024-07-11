@@ -861,6 +861,14 @@ impl Parser{
         }
     }
 
+
+    //Parses an expressions and returns the Expr
+    fn parseExpr(&mut self, tokenList: &mut Vec<Token>) -> Result<Option<Expr>, String> {
+        println!("Parsing expression");
+        
+        return(Ok(None));
+    }
+
     fn parse(&mut self, tokenList: &mut Vec<Token>) -> Result<Option<Stmt>, String> {
         // let mut tokenList = &mut self.tokenList;
 
@@ -1260,301 +1268,44 @@ impl Parser{
                     k += 1;
                 }
 
-                //Checks to make sure there was a semicolon
-                // println!("K: ")
-                // curStmt.push(nextTok);
-                // println!("Found the semicolon");
-
-                // println!("CurStmt[1]: {}", curStmt[1].tokenString);
-                match curStmt[1].tt {
-                    tokenTypeEnum::SET_EQUALS => {
-                        let varName = &curStmt[0].tokenString;
-                        // println!("command length: {}", &curStmt.len().to_string());
-                        //Simple assign
-                        if (curStmt.len() == 4) {
-                            // println!("Simple set equals found");
-                            let varName = curStmt[0].tokenString.clone();
-                            let valueRes = Expr::new(curStmt[2].tt.clone(), Some(curStmt[2].tokenString.clone()));
-                            let mut valueExpr:Expr; 
-                            match valueRes {
-                                Ok(expr) => {
-                                    valueExpr = expr;
-                                }
-                                Err(err) => {
-                                    println!("Error creating expression");
-                                    let errMsg = format!("Error on line {}: {}", curStmt[0].lineNum, err);
-                                    self.reports.reportError(errMsg);
-                                    return Err("Error with expression".to_string());
-                                }
+                //Looks ahead to see what comes next and parses accordingly
+                match curStmt[1].tg {
+                    tokenGroup::OPERATOR => {
+                        println!("OPERATOR");
+                        match curStmt[1].tt {
+                            tokenTypeEnum::SET_EQUALS =>{
+                                println!("SET EQUALS");
                             }
-                            let assignStmt = Stmt::Assign(varName, valueExpr);
-                            tokenList.drain(0..k+1);
-                            return Ok(Some(assignStmt));
-                            
-                        }  else if (curStmt.len() > 4) {
-                            // println!("complex set equals");
-    
-                            let mut subList = tokenList.clone();
-                            subList.drain(0..2); 
-                            // println!("First token: {}", subList[0].tokenString);
-                            let mut parsedExpr: Expr;
-                            let scanned = self.parse(&mut subList);                            
-                                let mut headerStmt:Expr;
-                                // let mut headerReporting = Reporting::new();
-                                match scanned {
-                                    Ok((Some(stmt))) => {
-                                        let parsed = stmt.extractExpr();
-                                        match parsed {
-                                            Ok(expr) => {
-                                                parsedExpr = expr
-                                            },
-                                            Err(msg) => {
-                                                println!("Error parsing expression from statment");
-                                                let errMsg = format!("Error parsing body: {:?}", self.reports);
-                                                parsedExpr = Expr::IntLiteral(0);
-                                            }
-                                        }
-                                                 
-                                        
-                                    },
-                                    Ok((None)) => {
-                                        println!("Parsed complex expression but no statement returned.");
-                                        parsedExpr = Expr::IntLiteral(0);
-                                    },
-                                    Err(reporting) => {
-                                        println!("Error parsing expression: {:?}", reporting);
-                                        let errMsg = format!("Error parsing body: {:?}", self.reports);
-    
-                                        return Err(errMsg);
-                                    },
-                                }
-                            // println!("Expression parsed: {}", parsedExpr);
-                            let retStmt = Stmt::Assign(varName.to_string(), parsedExpr);
-                            
-                            // parsedStmt.display(0);
-                            tokenList.drain(0..k+1);
-                            return Ok(Some(retStmt));
+                            _ => {
+                                println!("Other");
+                            }
+                        }
                         
-                        } else {
-                            // println!("{}", curStmt[1].tt);
-                            println!("Fuck you");
-                            self.reports.reportError(format!(
-                                "In line: {}, Satement is too short'", curStmt[3].lineNum));
-                            return Err("Error with identifier".to_string());
-                        } 
+                        return Ok(None);
+
                     }
-                    tokenTypeEnum::L_BRACKET => {
-                        println!("Left bracket found");
-                        if(curStmt[3].tt != tokenTypeEnum::R_BRACKET){
-                            println!("No right bracket, has this: {}", curStmt[3].tokenString);
-                            self.reports.reportError(format!(
-                                "In line: {}, Array variable incorrect.", 
-                                curStmt[3].lineNum, 
-                            ));
-                            return Err("Error with variable declaration".to_string());
-                        }
-
+                    tokenGroup::NUMBER => {
+                        println!("NUMBER");
                         
-                        // println!("Simple set equals found");
-                        let varName = curStmt[0].tokenString.clone();
-                        // println!("Value: {}", curStmt[5].tokenString);
-                        let valueRes = Expr::new(curStmt[5].tt.clone(), Some(curStmt[5].tokenString.clone()));
-                        let mut valueExpr:Expr; 
-                        match valueRes {
-                            Ok(expr) => {
-                                valueExpr = expr;
+                        return Ok(None);
+                    }
+                    tokenGroup::SYMBOL => {
+                        println!("SYMBOL");
+                        match curStmt[1].tt {
+                            tokenTypeEnum::L_BRACKET =>{
+                                println!("ARRAY REFERENCE FOUND");
                             }
-                            Err(err) => {
-                                println!("Error creating array expression");
-                                let errMsg = format!("Error with expression on line {}: {}", curStmt[0].lineNum, err);
-                                self.reports.reportError(errMsg);
-                                return Err("Error with expression".to_string());
+                            _ => {
+                                println!("Other symbol");
                             }
                         }
                         
-                        let indexRes = Expr::new(curStmt[2].tt.clone(), Some(curStmt[2].tokenString.clone()));
-                        let mut indexExpr:Expr; 
-                        match indexRes {
-                            Ok(expr) => {
-                                indexExpr = expr;
-                            }
-                            Err(err) => {
-                                // println!("Error creating expression");
-                                let errMsg = format!("Error with parsing array index on line {}: {}", curStmt[0].lineNum, err);
-                                self.reports.reportError(errMsg);
-                                return Err("Error with expression".to_string());
-                            }
-                        }
+                        return Ok(None);
 
-                        // println!("Variable name: {}", varName.to_string());
-                        // println!("Index: {}", indexExpr);
-                        // println!("Value: {}", valueExpr);
-
-                        //Converts the guys to boxes
-                        let boxIndex: Box<Expr> = Box::new(indexExpr);
-                        let boxValue: Box<Expr> = Box::new(valueExpr);
-
-                        let arraySet = Expr::ArrayAssign(boxIndex, boxValue);
-                        
-                        
-                        let assignStmt = Stmt::Assign(varName, arraySet);
-
-                        // println!("Assignment:");
-                        // assignStmt.display(0);
-
-                        // println!("Next token: {}", tokenList[k+1].tokenString);
-                        tokenList.drain(0..k+1);
-
-                        return Ok(Some(assignStmt));
                     }
                     _ => {
-                        // println!("Found an expression of type: {}", curStmt[1].tokenString);
-                        // println!("Expressions length: {}", curStmt.len());
-                        if(curStmt.len() == 4) {
-                            // println!("Simple expression");
-                            // println!("First token in simple expression: {}", curStmt[0].tokenString);
-                            let operand1 = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
-                            let mut op1Expr: Expr;
-                            match operand1 {
-                                Ok(expr) => {
-                                    op1Expr = expr;
-                                }
-                                Err(err) => {
-                                    println!("Error parsing operand 1");
-                                    let errMsg = format!("Error with operand 1 on line {}: {}", curStmt[0].lineNum, err);
-                                    self.reports.reportError(errMsg);
-                                    return Err("Error with operand 1".to_string());
-                                }
-                            }
-
-                            
-                            let operand2 = Expr::new(curStmt[2].tt.clone(), Some(curStmt[2].tokenString.clone()));
-                            let mut op2Expr: Expr;
-                            match operand2 {
-                                Ok(expr) => {
-                                    op2Expr = expr;
-                                }
-                                Err(err) => {
-                                    println!("Error parsing operand 2");
-                                    let errMsg = format!("Error with operand 2 on line {}: {}", curStmt[0].lineNum, err);
-                                    self.reports.reportError(errMsg);
-                                    return Err("Error with operand 2".to_string());
-                                }
-                            }
-
-                        
-                            let operator = BinOp::new(curStmt[1].tt.clone());
-                            let mut opBin:BinOp; 
-                            match operator {
-                                Ok(expr) => {
-                                    opBin = expr;
-                                }
-                                Err(err) => {
-                                    println!("Error creating expression");
-                                    let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
-                                    self.reports.reportError(errMsg);
-                                    return Err("Error with operator".to_string());
-                                }
-                            }
-
-                            let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
-
-                            let retStmt = Stmt::Expr(finalExpr);
-                            tokenList.drain(0..k+1);
-                            return Ok(Some(retStmt));
-
-                        } else if (curStmt.len() > 4) {
-                            // println!("Complex expressions");
-                            // println!("First complex expression token: {}", curStmt[0].tokenString);
-
-                            //Parses the first operand
-                            let operand1 = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
-                            let mut op1Expr: Expr;
-                            match operand1 {
-                                Ok(expr) => {
-                                    op1Expr = expr;
-                                }
-                                Err(err) => {
-                                    println!("Error parsing operand 1");
-                                    let errMsg = format!("Error with operand 1 on line {}: {}", curStmt[0].lineNum, err);
-                                    self.reports.reportError(errMsg);
-                                    return Err("Error with operand 1".to_string());
-                                }
-                            }
-
-                            // println!("Operand 1: {}", op1Expr);
-                            
-                            let mut subList = tokenList.clone();
-                            subList.drain(0..2);
-                            // println!("First new token expression token: {}", subList[0].tokenString);
-
-                            let mut parsedExpr: Expr;
-                            let scanned = self.parse(&mut subList);                            
-                                let mut headerStmt:Expr;
-                                // let mut headerReporting = Reporting::new();
-                                match scanned {
-                                    Ok((Some(stmt))) => {
-                                        let parsed = stmt.extractExpr();
-                                        match parsed {
-                                            Ok(expr) => {
-                                                parsedExpr = expr
-                                            },
-                                            Err(msg) => {
-                                                println!("Error parsing expression from statment");
-                                                let errMsg = format!("Error parsing body: {:?}", self.reports);
-                                                parsedExpr = Expr::IntLiteral(0);
-                                            }
-                                        }
-                                                 
-                                        
-                                    },
-                                    Ok((None)) => {
-                                        println!("Parsed complex expression but no statement returned.");
-                                        parsedExpr = Expr::IntLiteral(0);
-                                    },
-                                    Err(reporting) => {
-                                        println!("Error parsing expression: {:?}", reporting);
-                                        let errMsg = format!("Error parsing body: {:?}", self.reports);
-    
-                                        return Err(errMsg);
-                                    },
-                                }
-                            // println!("Expression parsed: {}", parsedExpr);
-                            let op2Expr = parsedExpr;
-                            // println!("Operand 2: {}", op2Expr);
-
-
-                            let operator = BinOp::new(curStmt[1].tt.clone());
-                            let mut opBin:BinOp; 
-                            match operator {
-                                Ok(expr) => {
-                                    opBin = expr;
-                                }
-                                Err(err) => {
-                                    println!("Error creating expression");
-                                    let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
-                                    self.reports.reportError(errMsg);
-                                    return Err("Error with operator".to_string());
-                                }
-                            }
-
-                            // println!("Operator: {}", opBin);
-
-                            
-                            let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
-
-                            // println!("Final complex expression: {}", finalExpr);
-
-                            let retStmt = Stmt::Expr(finalExpr);
-                            tokenList.drain(0..k+1);
-                            return Ok(Some(retStmt));
-                        } else {
-                            println!("Fucked up expressions");
-                             // println!("{}", curStmt[1].tt);
-                             self.reports.reportError(format!(
-                                 "In line: {}, expression is too short'", curStmt[3].lineNum));
-                             return Err("Error with expression".to_string());
-                        }
+                        println!("UNACCOUNTED IN MATCH CASE");
+                        return Ok(None);
                     }
                 }
             }
@@ -2811,8 +2562,9 @@ pub enum Expr {
     FloatLiteral(f64),
     StringLiteral(String),
     VarRef(String),
+    ArrayRef(String, i32),
     BinOp(Box<Expr>, BinOp, Box<Expr>),
-    ArrayAssign(Box<Expr>, Box<Expr>),
+    // ArrayAssign(Box<Expr>, Box<Expr>),
     
 }
 
@@ -2861,7 +2613,7 @@ impl fmt::Display for Expr {
             Expr::FloatLiteral(n) => write!(f, "{}", n),
             Expr::BinOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
             Expr::VarRef(var) => write!(f, "{}", var),
-            Expr::ArrayAssign(index, value) => write!(f, "({} {})", index, value),
+            Expr::ArrayRef(var, index) => write!(f, "({} {})", var, index),
         }
     }
 }
@@ -2909,6 +2661,7 @@ pub enum Stmt {
     StringLiteral(String),
     Expr(Expr),                     // Expression statement
     Assign(String, Expr),           // Assignment statement: variable name, expression
+    ArrayAssign(String, i32, Expr), // Array assignment statement: Variable name, index, expression
     VarDecl(String, VarType),       // Variable declaration statement
     GlobVarDecl(String, VarType),       // Variable declaration statement
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),  // If statement: condition, body, optional else body
@@ -2941,6 +2694,10 @@ impl Stmt {
             Stmt::StringLiteral(s) => println!("{}StringLiteral({})", indentation, s),
             Stmt::Expr(expr) => println!("{}Expr({})", indentation, expr),
             Stmt::Assign(var, expr) => println!("{}Assign({}, {})", indentation, var, expr),
+            
+            Stmt::ArrayAssign(var, index, expr) => println!("{}Index Assign({}[{}], {})", indentation, var, index, expr),
+            
+            
             Stmt::VarDecl(var, vartype) => println!("{}VarDecl({}, {})", indentation, var, vartype),
             Stmt::GlobVarDecl(var, vartype) => println!("{}GlobVarDecl({}, {})", indentation, var, vartype),
             Stmt::If(cond, body, else_body) => {

@@ -212,7 +212,7 @@ impl fmt::Display for tokenGroup {
 struct Lexer {
     //tokenType: tokenTypeEnum,
     inputFile: inFile,
-    symTab: symbolTable,
+    symTab: tokenTable,
     tokenList: Vec<Token>,
     reports: Reporting,
     // reservedWords: [&str; 10],
@@ -224,7 +224,7 @@ impl Lexer{
         println!("Beginning creation of Lexer");
         let newFile = inFile::new(fileName);
         println!("Lexer created successfully");
-        let mut symTable = symbolTable::new();
+        let mut symTable = tokenTable::new();
         let mut report: Reporting = Reporting::new();
 
 
@@ -269,7 +269,7 @@ impl Lexer{
                     if c == '\n' {
                         self.inputFile.incLineCnt();
                         
-                        currChar = self.inputFile.getChar();
+                        // currChar = self.inputFile.getChar();
                         break;
                     } else {
                         currChar = self.inputFile.getChar();
@@ -839,13 +839,13 @@ impl Parser{
 
 
     fn startParse(&mut self) -> Result<(Reporting, Option<Stmt>), Reporting> {
-        println!("Starting master parse");
+        // println!("Starting master parse");
         let mut tokList = self.tokenList.clone();
         let parsed = self.parse(&mut tokList);
 
         match parsed {
             Ok((Some(stmt))) => {
-                println!("program parsed successfully");
+                println!("Program parsed successfully");
                 // stmt.display(0);
                 // headerBlock.push_to_block(stmt.clone());
                 // headerStmt = stmt;
@@ -1047,10 +1047,10 @@ impl Parser{
             curStmt.drain(..parStmt.len());
 
         } else if (curStmt[0].tt == tokenTypeEnum::PROCEDURE_CALL) {
-            println!("Procedure call");
+            // println!("Procedure call");
             let procName = curStmt[0].tokenString.clone();
             if (curStmt[1].tt != tokenTypeEnum::R_PAREN) {
-                println!("There are params");
+                // println!("There are params");
                 let mut paramInd = 0;
                 let mut params: Vec<Expr> = Vec::new();
                 let mut paramTokens: Vec<Token> = Vec::new();
@@ -1102,10 +1102,10 @@ impl Parser{
                     }
                 }
 
-                println!("Extracted parameters:");
-                for param in params.clone(){
-                    println!("{}", param);
-                }
+                // println!("Extracted parameters:");
+                // for param in params.clone(){
+                //     println!("{}", param);
+                // }
                 let procCall = Expr::ProcCall((procName), (Some(params)));
                 
                 varRef = procCall;
@@ -1124,7 +1124,7 @@ impl Parser{
             // println!("Expression first not a variable reference");
             match &varRef {
                 Expr::StringLiteral(s) if s == "NONE" => {
-                    println!("Uninitializes varRef");
+                    // println!("Uninitialized varRef");
                     let empty:Expr = Expr::StringLiteral(("NONE".to_string())); 
                     let valRef = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
                     match valRef {
@@ -1503,7 +1503,6 @@ impl Parser{
 
                 
             }
-
             tokenTypeEnum::GLOBAL => {
                 let mut retStmt:Stmt;
                 
@@ -1609,8 +1608,7 @@ impl Parser{
                 
 
                 
-            }
-            
+            }           
             tokenTypeEnum::IDENTIFIER => {
                 //Initializes the variable that is being referenced first
                 let mut varRef:Expr;
@@ -1751,7 +1749,7 @@ impl Parser{
 
                             }
                             tokenTypeEnum::L_PAREN => {
-                                println!("Procedure call");
+                                // println!("Procedure call");
 
                                 tokenList.drain(..k+1);
                                 return(Ok(None));
@@ -1824,8 +1822,6 @@ impl Parser{
                 return Ok(None);
                 
             }
-            
-            
             tokenTypeEnum::IF => {
                 //Finds the end of the IF statement
                 let mut k = 0;
@@ -2612,7 +2608,6 @@ impl Parser{
                 tokenList.drain(0..);
                 return Ok(Some(procedureAst));
             }
-
             tokenTypeEnum::RETURN => {
                 if tokenList[1].tt != tokenTypeEnum::SEMICOLON {
                     //Initializes the variable that is being referenced first
@@ -2645,8 +2640,8 @@ impl Parser{
                     
                 }
 
-                println!("The expression being parsed for return");
-                printTokList(&curStmt);
+                // println!("The expression being parsed for return");
+                // printTokList(&curStmt);
 
                 let scanExpr = self.parseExpr(&mut curStmt);
                 let retExpr: Expr;
@@ -2675,9 +2670,7 @@ impl Parser{
 
                     return(Ok(Some(retStmt)));
                 }
-            }
-
-            
+            }           
             tokenTypeEnum::END_PROGRAM => {
                 // println!("End program");
                 let len = tokenList.len();
@@ -3025,14 +3018,12 @@ impl Parser{
                 tokenList.drain(0..1);
                 return Ok((None));
             }
-            
             _ => {
                 // i = i + 1;
                 // return(Ok());
-                println!("Unaccounted token: '{}' on line: {}", token.tokenString, token.lineNum);
+                let errMsg = format!("Unexpected item: '{}' on line: {}", token.tokenString, token.lineNum);
                 tokenList.drain(0..1);
-                return Ok((None));
-
+                return Err(errMsg);
             }
         }
     }
@@ -3045,9 +3036,6 @@ impl Parser{
     }
     
 }
-
-
-
 
 #[derive(Debug, Clone)]
 pub enum BinOp {
@@ -3192,7 +3180,6 @@ impl VarType {
     }
 }
 
-
 impl fmt::Display for VarType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -3204,7 +3191,6 @@ impl fmt::Display for VarType {
         }
     }
 }
-
 
 // These are the types of statements that are available
 #[derive(Debug, Clone)]
@@ -3223,7 +3209,6 @@ pub enum Stmt {
     Program(String, Box<Stmt>, Box<Stmt>), //The program AST: Name, the statements
     Procedure(VarType, String, Box<Stmt>, Box<Stmt>, Box<Stmt>), //Procedure AST: type, Name, parameter, Header, body
 }
-
 
 impl Stmt {
     // Function to push a statement into a Block variant
@@ -3331,16 +3316,7 @@ pub struct Program {
     // pub statements: Vec<Stmt>,  // List of statements in the program
 }
 
-///////////////////////// /PARSER SECTION /////////////////////////
-
-fn printTokList(tokList: &Vec<Token>){
-    for token in tokList {
-        println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
-    }
-}
-    
-
-
+// These are the types of statements that are available
 
 
 //Structure for reporting errors and warnings
@@ -3383,13 +3359,102 @@ impl From<String> for Reporting {
     }
 }
 
+fn printTokList(tokList: &Vec<Token>){
+    for token in tokList {
+        println!("< \"{}\" , {}, {} >", token.tokenString, token.tt.to_string(), token.lineNum);
+    }
+}
+
+///////////////////////// /PARSER SECTION /////////////////////////
+
+
+
+///////////////////////// TYPE CHECKING SECTION /////////////////////////
+//The main type cheking class
+struct TypeChecker {
+    pub valid: bool,
+    pub ast: Stmt,
+}
+impl TypeChecker {
+    //The constructor
+    pub fn new(mut programAst: Stmt) -> TypeChecker {
+        TypeChecker{
+            valid: true,
+            ast: programAst.clone(),
+        }
+    }
+
+    //The main outward facing checker
+    pub fn checkProgram(&mut self) -> bool {
+        match &self.ast {
+            Stmt::Program(name, header, body) => {
+                
+                //Parses and checks the header
+                let head = header.clone();
+                let mut progHeader = *head;
+                // Check if the variable is a Block and iterate through it
+                if let Stmt::Block(ref instrs) = progHeader {
+                    for instr in instrs {
+                        let good = self.check(instr.clone());
+                        if (!good){
+                            println!("Error in statement:");
+                            instr.display(0);
+                            return false;
+                        } else {
+                            println!("Statment good");
+                        }
+                    }
+                } else {
+                    println!("Not a Block variant");
+                }
+                return true
+            }
+            _ => {
+                println!("TypeChecker must be passed a Program AST");
+                return false;
+            }
+        }
+    }
+    
+    //Checks each statement one at a time, returns a bool if there's an error
+    pub fn check(&mut self, mut checkStmt: Stmt) -> bool{
+        match (checkStmt){
+            Stmt::VarDecl(varName, varType) => {
+                return true;
+            }
+            _ => {
+
+                println!("Unaccounted");
+                return true
+            }
+        }
+    }
+}
+
+//An enum used for storing objects in the main hash map
+#[derive(Debug, Clone)]
+pub enum HashItem {
+    Var(VarType),           //Variable reference (type of variable)
+    Proc(VarType, HashMap<String, HashItem>, Stmt),    //Procedure (return type, procedure hash table, Proc AST)
+}
+//Assistive functions for hashItem
+impl HashItem {
+    pub fn display(&self, indent: usize) {
+        let indentation = " ".repeat(indent);
+        match self {
+            HashItem::Var(s) => println!("{}Variable type({})", indentation, s),
+            HashItem::Proc(t, map, ast) => {
+                println!("{}Procedure type: {}", indentation, t);
+                println!("{}Map: {:?}", indentation, map);
+                println!("AST:");
+                ast.display(indent + 1);
+            } 
+        }
+    }
+}
+
 //The structure for the SymbolTable. This holds all of the IDENTIFIERS of the program as well as their scope and information
 struct symbolTable{
-    // For now you can simply use a single hash table of tokens. As we move forward to parsing, the symbol table
-    // structure will have to be augmented to permit the recording of entering/exiting program scopes as well as
-    // the scope that an IDENTIFIER is declared. In general when you exit a scope the symbol table will remove
-    // any symbols defined in that scope from the symbol table. Again, we will solve this problem later; the
-    // example methods for scope entry/exit are here to deomonstrate what we will probably want in the future
     symTab: HashMap<String, Token>,
 }
 impl symbolTable{
@@ -3455,6 +3520,82 @@ impl symbolTable{
     // }
 }
 
+///////////////////////// /TYPE CHECKING SECTION /////////////////////////
+    
+
+
+//The structure for the SymbolTable. This holds all of the IDENTIFIERS of the program as well as their scope and information
+struct tokenTable{
+    // For now you can simply use a single hash table of tokens. As we move forward to parsing, the symbol table
+    // structure will have to be augmented to permit the recording of entering/exiting program scopes as well as
+    // the scope that an IDENTIFIER is declared. In general when you exit a scope the symbol table will remove
+    // any symbols defined in that scope from the symbol table. Again, we will solve this problem later; the
+    // example methods for scope entry/exit are here to deomonstrate what we will probably want in the future
+    tokTab: HashMap<String, Token>,
+}
+impl tokenTable{
+    // The symbol table hashLook function should automatically create a new entry and mark it as an
+    // IDENTIFIER Token for any IDENTIFIER string that is not already in the symbol table. In some languages
+    // case does not matter to the uniqueness of the symbol. In this case, an easy place to solve this is to simply
+    // upper case or lower case all strings in the symbol table API functions (and storage)
+    fn new() -> tokenTable {
+        //Creates the empty hash map
+        let mut symHash: HashMap<String, Token> = HashMap::new();
+
+        //List of all of the tokens that should be in the symbol table when initializes. Like all of the reserved words and such
+        let tokens = vec![
+            ("if", Token::new(tokenTypeEnum::IF, "if".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("else", Token::new(tokenTypeEnum::ELSE, "else".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("procedure", Token::new(tokenTypeEnum::PROCEDURE, "procedure".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("is", Token::new(tokenTypeEnum::IS, "is".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("global", Token::new(tokenTypeEnum::GLOBAL, "global".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("variable", Token::new(tokenTypeEnum::VARIABLE, "variable".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("begin", Token::new(tokenTypeEnum::BEGIN, "begin".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("then", Token::new(tokenTypeEnum::THEN, "then".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("end", Token::new(tokenTypeEnum::END, "end".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("program", Token::new(tokenTypeEnum::PROGRAM, "program".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("return", Token::new(tokenTypeEnum::RETURN, "return".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("for", Token::new(tokenTypeEnum::FOR, "for".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+
+
+
+        ];
+
+        for (key, value) in tokens {
+            symHash.insert(key.to_string(), value);
+        }
+
+        println!("Symbol table created and seeded");
+        // for (key, token) in &mut symHash {
+        //     println!("Key: {}, Token: {:?}", key, token.printToken());
+        // }
+
+
+        tokenTable{
+            tokTab: symHash,
+        }
+    }
+    //Returns the Token for a given string
+    fn hashLook(&mut self, mut lookupString: String, line: String) -> Token{
+        // println!("Looking up the identifier of the string");
+        if let Some(tokenResp) = self.tokTab.get(&lookupString){
+            // println!("Token found");
+            return tokenResp.clone();
+        } else {
+            // println!("Token not found, creating");
+            let newToken = Token::new(tokenTypeEnum::IDENTIFIER, lookupString, line.to_string(), tokenGroup::VARIABLE);
+            self.tokTab.insert(newToken.tokenString.clone(), newToken.clone());
+            return newToken;
+        }
+    }
+    // fn enterScope(){
+    //     println!("To be used in the future");
+    // }
+    // fn exitScope(){
+    //     println!("To be used in the future");
+    // }
+}
+
 
 
 //The main section of the code
@@ -3475,28 +3616,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("\n\nMy parser token list: ");
     // myParser.printTokenList();
 
-    // println!("\n\nParsing now");
-    // Call the parse function and handle the result
+    let mut programAst: Stmt;
     match myParser.startParse() {
         Ok((reporting, Some(stmt))) => {
-            println!("\n\nParsing completed successfully.");
-            println!("Reporting: {:?}", reporting);
-            stmt.display(0);
+            println!("Parsing completed successfully.");
+            // println!("Reporting: {:?}", reporting);
+            // stmt.display(0);
+            programAst = stmt;
             // Continue with normal flow
         }
         Ok((reporting, None)) => {
-            println!("\n\nParsing succeeded, but no statement was returned.");
-            println!("Reporting: {:?}", reporting);
+            println!("\n\nParsing succeeded, but no programAST was returned.");
+            // println!("Reporting: {:?}", reporting);
+            return Ok(());
+
             // Continue with normal flow
         }
         Err(reporting) => {
             eprintln!("\n\nParsing failed.");
-            eprintln!("Reporting: {:?}", reporting);
+            // eprintln!("Reporting: {:?}", reporting);
+            return Ok(());
             // Handle the error gracefully, log, recover, etc.
         }
     }
 
-    
+    println!("\n\nTypeChecker Created");
+    let mut myChecker = TypeChecker::new(programAst);
+    let programValid: bool = myChecker.checkProgram();
+
+
+    if(!programValid){
+        println!("Error in program");
+        return Ok(());
+    } else {
+        println!("Program is valid");
+    }
 
 
     Ok(())

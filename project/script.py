@@ -18,30 +18,30 @@
 
 def scanThrough(testStr):
     # scope = 0
-    i = 1
+    k = 1
 
     print("Length: " + str(len(testStr)))
 
     statement = []
 
-    while (i < len(testStr)):
-        currentLetter = testStr[i]
+    while (k < len(testStr)):
+        currentLetter = testStr[k]
         
         print("Character: " + currentLetter)
         if(currentLetter == '('):
             # scope = scope + 1
             print("Found sub statement")
-            newStr = testStr[i:]
+            newStr = testStr[k:]
             scanned = scanThrough(newStr)
             statement.append(scanned)
             diff = len(testStr) - len(scanned)
-            i = i + diff
+            k = k + diff
         elif (currentLetter == ')'):
             print("Closing bracket found")
-            i = len(testStr) + 1
+            k = len(testStr) + 1
         else:
             statement.append(currentLetter)
-            i = i + 1
+            k = k + 1
         
     return statement
         # i = i + 1

@@ -924,24 +924,24 @@ impl Parser{
 
     }
 
-    fn processBlock(&mut self, block: &Stmt) -> Result<Expr, String> {
-        match block {
-            Stmt::Block(stmts) => {
-                if let Some(first_stmt) = stmts.first() {
-                    match first_stmt {
-                        Stmt::Expr(expr) => {
-                            // If the first statement is an Expr, return it
-                            Ok(expr.clone()) // Cloning to return a new instance
-                        },
-                        _ => Err("First statement in Block is not an Expr".to_string()),
-                    }
-                } else {
-                    Err("Block is empty".to_string())
-                }
-            },
-            _ => Err("Expected Stmt::Block, but received a different Stmt type".to_string()),
-        }
-    }
+    // fn processBlock(&mut self, block: &Stmt) -> Result<Expr, String> {
+    //     match block {
+    //         Stmt::Block(stmts) => {
+    //             if let Some(first_stmt) = stmts.first() {
+    //                 match first_stmt {
+    //                     Stmt::Expr(expr) => {
+    //                         // If the first statement is an Expr, return it
+    //                         Ok(expr.clone()) // Cloning to return a new instance
+    //                     },
+    //                     _ => Err("First statement in Block is not an Expr".to_string()),
+    //                 }
+    //             } else {
+    //                 Err("Block is empty".to_string())
+    //             }
+    //         },
+    //         _ => Err("Expected Stmt::Block, but received a different Stmt type".to_string()),
+    //     }
+    // }
 
 
     //Parses an expressions and returns the Expr
@@ -1223,7 +1223,7 @@ impl Parser{
                 },
                 Err(reporting) => {
                     println!("Error parsing op on line {}: {:?}",curStmt[1].lineNum, reporting);
-                    println!("The fucked up guy in question: {}", curStmt[1].tokenString);
+                    // println!("The fucked up guy in question: {}", curStmt[1].tokenString);
                     let errMsg = format!("Error parsing operator on line {}: {:?}", curStmt[1].lineNum.to_string(), self.reports);
                     return Err(errMsg);
                 },
@@ -1347,7 +1347,7 @@ impl Parser{
 
                         //Parses the header
                         let mut newHeader: Vec<Token> = tokenList.iter().cloned().map(|t| t.clone()).collect();
-                        let mut headerBlock = Stmt::Block(Vec::new());
+                        let mut headerBlock = Stmt::Block(Vec::new(), tokenList[0].lineNum.clone());
                         let mut headerI = 0;
                         let headerLen = newHeader.len();
                         while(!newHeader.is_empty()){
@@ -1389,7 +1389,7 @@ impl Parser{
                         let mut newBody: Vec<Token> = bodyList.iter().cloned().map(|t| t.clone()).collect();
                         newBody.drain(0..1);
                         // println!("First in body: {}", newBody[0].tokenString);
-                        let mut bodyBlock = Stmt::Block(Vec::new());
+                        let mut bodyBlock = Stmt::Block(Vec::new(), "".to_string());
                         let mut bodyI = 0;
                         let bodyLen = newBody.len();
                         while(!newBody.is_empty()){
@@ -1437,7 +1437,7 @@ impl Parser{
                         let boxBody: Box<Stmt> = Box::new(bodyBlock);
 
 
-                        let programAst = Stmt::Program(programName.clone(), boxHeader, boxBody);
+                        let programAst = Stmt::Program(programName.clone(), boxHeader, boxBody, "0".to_string());
                         // programAst.display(0);
 
                         return Ok((Some(programAst)));
@@ -1499,7 +1499,7 @@ impl Parser{
                                 if curStmt[5].tt == tokenTypeEnum::INT {
                                     let arSizeStr = curStmt[5].tokenString.clone();
                                     if let Ok(arSize) = arSizeStr.parse::<usize>() {
-                                        let newVar = Stmt::VarDecl(varName.clone(), VarType::IntArray(vec![0; arSize]));
+                                        let newVar = Stmt::VarDecl(varName.clone(), VarType::IntArray(vec![0; arSize]), curStmt[0].lineNum.clone());
                                         retStmt = newVar;
                                     } else {
                                         self.reports.reportError(format!(
@@ -1525,18 +1525,18 @@ impl Parser{
                             }
                         }
                     } else if curStmt[3].tokenString == "string" {
-                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Str("".to_string()));
+                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Str("".to_string()), curStmt[3].lineNum.clone());
                         retStmt = newVar;
                     } else if curStmt[3].tokenString == "integer" {
-                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Int(0));
+                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Int(0), curStmt[3].lineNum.clone());
                         retStmt = newVar;
 
                     }  else if curStmt[3].tokenString == "bool" {
-                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Bool(false));
+                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Bool(false), curStmt[3].lineNum.clone());
                         retStmt = newVar;
 
                     }  else if curStmt[3].tokenString == "float" {
-                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Float(0.0));
+                        let newVar = Stmt::VarDecl(varName.clone(), VarType::Float(0.0), curStmt[3].lineNum.clone());
                         retStmt = newVar;
                     } else {
                         self.reports.reportError(format!(
@@ -1605,7 +1605,7 @@ impl Parser{
                                 if curStmt[5].tt == tokenTypeEnum::INT {
                                     let arSizeStr = curStmt[5].tokenString.clone();
                                     if let Ok(arSize) = arSizeStr.parse::<usize>() {
-                                        let newVar = Stmt::GlobVarDecl(varName.clone(), VarType::IntArray(vec![0; arSize]));
+                                        let newVar = Stmt::GlobVarDecl(varName.clone(), VarType::IntArray(vec![0; arSize]), curStmt[3].lineNum.clone());
                                         retStmt = newVar;
                                     } else {
                                         self.reports.reportError(format!(
@@ -1631,18 +1631,18 @@ impl Parser{
                             }
                         }
                     } else if curStmt[3].tokenString == "string" {
-                        let newVar = Stmt::GlobVarDecl(varName.clone(), VarType::Str("".to_string()));
+                        let newVar = Stmt::GlobVarDecl(varName.clone(), VarType::Str("".to_string()), curStmt[3].lineNum.clone());
                         retStmt = newVar;
                     } else if curStmt[3].tokenString == "integer" {
-                        let newVar = Stmt::GlobVarDecl(varName.clone(), VarType::Int(0));
+                        let newVar = Stmt::GlobVarDecl(varName.clone(), VarType::Int(0), curStmt[3].lineNum.clone());
                         retStmt = newVar;
 
                     }  else if curStmt[3].tokenString == "bool" {
-                        let newVar = Stmt::GlobVarDecl(varName.clone(), VarType::Bool(false));
+                        let newVar = Stmt::GlobVarDecl(varName.clone(), VarType::Bool(false), curStmt[3].lineNum.clone());
                         retStmt = newVar;
 
                     }  else if curStmt[3].tokenString == "float" {
-                        let newVar = Stmt::GlobVarDecl(varName.clone(), VarType::Float(0.0));
+                        let newVar = Stmt::GlobVarDecl(varName.clone(), VarType::Float(0.0), curStmt[3].lineNum.clone());
                         retStmt = newVar;
                     } else {
                         self.reports.reportError(format!(
@@ -1800,7 +1800,7 @@ impl Parser{
                                 
                                 // println!("New value expressions: {}", newValueExpr);
 
-                                let varAssignment = Stmt::Assign((varRef), (newValueExpr));
+                                let varAssignment = Stmt::Assign((varRef), (newValueExpr), curStmt[0].lineNum.clone());
                                 tokenList.drain(..k+1);
                                 return Ok(Some(varAssignment));
 
@@ -1837,7 +1837,7 @@ impl Parser{
                                     }
                                 }
 
-                                let exprStmt = Stmt::Expr((retVal));
+                                let exprStmt = Stmt::Expr((retVal), curStmt[0].lineNum.clone());
                                 // println!("retval: {}", retVal);
                                 tokenList.drain(..k+1);
                                 return Ok(Some(exprStmt));
@@ -1986,7 +1986,7 @@ impl Parser{
 
                     //Parses the header
                     let mut newIf: Vec<Token> = ifList.iter().cloned().map(|t| t.clone()).collect();
-                    let mut ifBlock = Stmt::Block(Vec::new());
+                    let mut ifBlock = Stmt::Block(Vec::new(), curStmt[0].lineNum.clone());
                     let mut ifI = 0;
                     let ifLen = newIf.len();
                     // println!("newIf len {}", ifLen.to_string());
@@ -2032,7 +2032,7 @@ impl Parser{
                     newElse.drain(0..1);
                     newElse.drain(newElse.len() - 1..);
                     // println!("First in else: {}", newElse[0].tokenString);
-                    let mut elseBlock = Stmt::Block(Vec::new());
+                    let mut elseBlock = Stmt::Block(Vec::new(), curStmt[0].lineNum.clone());
                     let mut elseI = 0;
                     let elseLen = newElse.len();
                     while(!newElse.is_empty()){
@@ -2080,7 +2080,7 @@ impl Parser{
                     let elseBox = Box::new(elseBlock);
 
                     //Finishes up and returns
-                    let retStmt = Stmt::If(ifCondition, ifBox, Some(elseBox));
+                    let retStmt = Stmt::If(ifCondition, ifBox, Some(elseBox), curStmt[0].lineNum.clone());
                     tokenList.drain(0..k+2);
                     return Ok(Some(retStmt));
                 } else {
@@ -2090,7 +2090,7 @@ impl Parser{
 
                     //Parses the header
                     let mut newIf: Vec<Token> = ifList.iter().cloned().map(|t| t.clone()).collect();
-                    let mut ifBlock = Stmt::Block(Vec::new());
+                    let mut ifBlock = Stmt::Block(Vec::new(), curStmt[0].lineNum.clone());
                     let mut ifI = 0;
                     let ifLen = newIf.len();
                     // println!("newIf len {}", ifLen.to_string());
@@ -2133,7 +2133,7 @@ impl Parser{
                     let ifBox = Box::new(ifBlock);
 
                     //Finishes up and returns
-                    let retStmt = Stmt::If(ifCondition, ifBox, None);
+                    let retStmt = Stmt::If(ifCondition, ifBox, None, curStmt[0].lineNum.clone());
                     tokenList.drain(0..k+2);
                     return Ok(Some(retStmt));
                 }
@@ -2220,7 +2220,7 @@ impl Parser{
                         },
                         Ok((None)) => {
                             println!("Parsed for condition expression but no statement returned.");
-                            parsedStmt = Stmt::StringLiteral("None".to_string());
+                            parsedStmt = Stmt::StringLiteral("None".to_string(), tokenList[0].lineNum.clone());
                         },
                         Err(err) => {
                             // println!("Error parsing for condition: {:?}", err);
@@ -2281,7 +2281,7 @@ impl Parser{
 
                 // println!("test1");
                 let mut newFor: Vec<Token> = forList.iter().cloned().map(|t| t.clone()).collect();
-                let mut forBlock = Stmt::Block(Vec::new());
+                let mut forBlock = Stmt::Block(Vec::new(), tokenList[0].lineNum.clone());
                 let mut ifI = 0;
                 let ifLen = newFor.len();
                 // println!("newFor len {}", ifLen.to_string());
@@ -2326,7 +2326,7 @@ impl Parser{
                 let forBox = Box::new(forBlock);
 
                 //Finishes up and returns
-                let retStmt = Stmt::For(forDecl.into(), forCond, forBox);
+                let retStmt = Stmt::For(forDecl.into(), forCond, forBox, tokenList[0].lineNum.clone());
 
 
                 // println!("Final for:");
@@ -2398,7 +2398,7 @@ impl Parser{
                     }
                 }
 
-                let mut paramList = Stmt::Block(Vec::new());
+                let mut paramList = Stmt::Block(Vec::new(), curStmt[0].lineNum.clone());
                 
                 let mut j = 4;
                 //Finds and extracts the parameters
@@ -2566,7 +2566,7 @@ impl Parser{
 
                 //Parses the header
                 let mut newHeader: Vec<Token> = curStmt.iter().cloned().map(|t| t.clone()).collect();
-                let mut headerBlock = Stmt::Block(Vec::new());
+                let mut headerBlock = Stmt::Block(Vec::new(), tokenList[0].lineNum.clone());
                 let mut headerI = 0;
                 // println!("First in procedure header: {}", newHeader[0].tokenString);
 
@@ -2608,7 +2608,7 @@ impl Parser{
                 let mut newBody: Vec<Token> = bodyList.iter().cloned().map(|t| t.clone()).collect();
                 newBody.drain(0..1);
                 // println!("First in body: {}", newBody[0].tokenString);
-                let mut bodyBlock = Stmt::Block(Vec::new());
+                let mut bodyBlock = Stmt::Block(Vec::new(), tokenList[0].lineNum.clone());
                 let mut bodyI = 0;
                 let bodyLen = newBody.len();
                 while(!newBody.is_empty()){
@@ -2659,7 +2659,7 @@ impl Parser{
                 let boxParams: Box<Stmt> = Box::new(paramList);
 
 
-                let procedureAst = Stmt::Procedure(procedureType, procId.clone(), boxParams, boxHeader, boxBody);
+                let procedureAst = Stmt::Procedure(procedureType, procId.clone(), boxParams, boxHeader, boxBody, tokenList[0].lineNum.clone());
                 // procedureAst.display(0);
                 
                 tokenList.drain(0..);
@@ -2713,14 +2713,14 @@ impl Parser{
                 }
 
 
-                let retVal = Stmt::Return((retExpr));
+                let retVal = Stmt::Return((retExpr), tokenList[0].lineNum.clone());
                 // println!("The next token after return: {}", tokenList[k].tokenString);
 
                 tokenList.drain(..k+1);
                 return Ok(Some(retVal));
                 } else {
                     let retValue = Expr::VarRef("".to_string());
-                    let retStmt = Stmt::Return(retValue);
+                    let retStmt = Stmt::Return(retValue, tokenList[0].lineNum.clone());
                     // let _ = newBlock.push_to_block(retStmt);
                     tokenList.drain(0..3);
                     // println!("else return");
@@ -2800,15 +2800,15 @@ impl Parser{
                             // println!("Error creating expression");
                             let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
                             self.reports.reportError(errMsg);
-                            let errMsg =  format!("Error with operator on line {}", curStmt[0].lineNum);
+                            let errMsg =  format!("Error with operator on line {}", curStmt[0].lineNum.clone());
                             println!("{}", errMsg);
                             return Err(errMsg);
                         }
                     }
                     
-                    let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
+                    let finalExpr = Expr::newOp(op1Expr, opBin, op2Expr);
 
-                    let retStmt = Stmt::Expr(finalExpr);
+                    let retStmt = Stmt::Expr(finalExpr, tokenList[0].lineNum.clone());
                     tokenList.drain(0..k+1);
                     return Ok(Some(retStmt));
 
@@ -2891,11 +2891,11 @@ impl Parser{
                     // println!("Operator: {}", opBin);
 
                     
-                    let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
+                    let finalExpr = Expr::newOp(op1Expr, opBin, op2Expr);
 
                     // println!("Final complex expression: {}", finalExpr);
 
-                    let retStmt = Stmt::Expr(finalExpr);
+                    let retStmt = Stmt::Expr(finalExpr, tokenList[0].lineNum.clone());
                     tokenList.drain(0..k+1);
                     return Ok(Some(retStmt));
                 } else {
@@ -2972,9 +2972,9 @@ impl Parser{
                         }
                     }
                     
-                    let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
+                    let finalExpr = Expr::newOp(op1Expr, opBin, op2Expr);
 
-                    let retStmt = Stmt::Expr(finalExpr);
+                    let retStmt = Stmt::Expr(finalExpr, tokenList[0].lineNum.clone());
                     tokenList.drain(0..k+1);
                     return Ok(Some(retStmt));
 
@@ -3058,23 +3058,24 @@ impl Parser{
                     // println!("Operator: {}", opBin);
 
                     
-                    let finalExpr = Expr::BinOp(Box::new(op1Expr), opBin, Box::new(op2Expr));
+                    let finalExpr = Expr::newOp(op1Expr, opBin, op2Expr);
 
                     // println!("Final complex expression: {}", finalExpr);
 
-                    let retStmt = Stmt::Expr(finalExpr);
+                    let retStmt = Stmt::Expr(finalExpr, tokenList[0].lineNum.clone());
                     tokenList.drain(0..k+1);
                     return Ok(Some(retStmt));
                 } else {
                     println!("Fucked up expressions");
                     // println!("{}", curStmt[1].tt);
                     self.reports.reportError(format!(
-                        "In line: {}, expression is too short'", curStmt[3].lineNum));
+                        "In line: {}, expression is too short'", curStmt[3].lineNum.clone()));
                     return Err("Error with expression".to_string());
                 }
             }
             tokenTypeEnum::PROCEDURE_CALL => {
                 println!("PROCEDURE CALL");
+                
                 tokenList.drain(0..1);
                 return Ok((None));
             }
@@ -3153,9 +3154,10 @@ pub enum Expr {
     VarRef(String),                         //A reference to a variable (variable name)
     ArrayRef(String, Box<Expr>),            //A reference to an array index (array name, Box of the index value)
                                             //                               This is a box because it can be an intliteral or BinOp
-
     BinOp(Box<Expr>, BinOp, Box<Expr>),     //A binary Operation, (Operand 1, an instance of the BinOp enum, Operand 2)
                                             //                      These are boxes because they can contain more BinOps within themselves     
+    CondOp(Box<Expr>, BinOp, Box<Expr>),     //A conditional/comparator operation (operand 1, operator (<, >, etc.), operand 2) 
+    
     // ArrayAssign(Box<Expr>, Box<Expr>),
     ProcCall(String, Option<Vec<Expr>>),    //Procedure calls: the name of the procedure, an optional box of a Block of Exprs for the parameters 
 
@@ -3179,6 +3181,7 @@ impl Expr {
                 let value = param1.ok_or("StringLiteral requires a string parameter".to_string())?.to_string();
                 Ok(Expr::StringLiteral(value))
             },
+            
             // "BinOp" => {
             //     let left = param3.ok_or("BinOp requires a left operand".to_string())?;
             //     let op = match *left {
@@ -3194,6 +3197,30 @@ impl Expr {
                 Ok(Expr::VarRef(var_name))
             },
             _ => Err("Invalid expression type".to_string()),
+        }
+    }
+
+    pub fn newOp(op1: Expr, operand: BinOp, op2: Expr) -> Expr {
+        match operand{
+            BinOp::Check_Equal => {
+                return  Expr::CondOp(Box::new(op1), operand, Box::new(op2));
+            }
+            BinOp::Greater => {
+                return  Expr::CondOp(Box::new(op1), operand, Box::new(op2));
+            }
+            BinOp::Greater_Equal => {
+                return  Expr::CondOp(Box::new(op1), operand, Box::new(op2));
+            }
+            BinOp::Less_Equal => {
+                return  Expr::CondOp(Box::new(op1), operand, Box::new(op2));
+            }
+            BinOp::Less => {
+                return  Expr::CondOp(Box::new(op1), operand, Box::new(op2));
+            }
+            
+            _ => {
+                return  Expr::BinOp(Box::new(op1), operand, Box::new(op2));
+            }
         }
     }
 }
@@ -3213,6 +3240,8 @@ impl fmt::Display for Expr {
                 write!(f, "{}({})", name, params_str)
             },
             Expr::ProcCall(name, None) => write!(f, "{}()", name),
+            Expr::CondOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
+
         }
     }
 }
@@ -3255,25 +3284,26 @@ impl fmt::Display for VarType {
 // These are the types of statements that are available
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    StringLiteral(String),
-    Expr(Expr),                     // Expression statement
-    Assign(Expr, Expr),           // Assignment statement: variable refernce, expression to assign to
-    VarDecl(String, VarType),       // Variable declaration statement
-    GlobVarDecl(String, VarType),       // Variable declaration statement
-    If(Expr, Box<Stmt>, Option<Box<Stmt>>),  // If statement: condition, body, optional else body
-    For(Rc<Stmt>, Expr, Box<Stmt>),          // For statement: assignment, condition, Box of commands for statement
-    Block(Vec<Stmt>),               // Block statement: list of statements
-    Error(Reporting),
-    Return(Expr),
-    Program(String, Box<Stmt>, Box<Stmt>), //The program AST: Name, the statements
-    Procedure(VarType, String, Box<Stmt>, Box<Stmt>, Box<Stmt>), //Procedure AST: type, Name, parameter, Header, body
+    StringLiteral(String, String),
+    Expr(Expr, String),                     // Expression statement
+    Assign(Expr, Expr, String),           // Assignment statement: variable refernce, expression to assign to
+    VarDecl(String, VarType, String),       // Variable declaration statement
+    GlobVarDecl(String, VarType, String),       // Variable declaration statement
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>, String),  // If statement: condition, body, optional else body
+    For(Rc<Stmt>, Expr, Box<Stmt>, String),          // For statement: assignment, condition, Box of commands for statement
+    Block(Vec<Stmt>, String),               // Block statement: list of statements
+    Error(Reporting, String),
+    Return(Expr, String),
+    Program(String, Box<Stmt>, Box<Stmt>, String), //The program AST: Name, the statements
+    Procedure(VarType, String, Box<Stmt>, Box<Stmt>, Box<Stmt>, String), //Procedure AST: type, Name, parameter, Header, body
 }
 
 impl Stmt {
     // Function to push a statement into a Block variant
     pub fn push_to_block(&mut self, stmt: Stmt) -> Result<(), String> {
+        let fakeLine = "num".to_string();
         match self {
-            Stmt::Block(stmts) => {
+            Stmt::Block(stmts, fakeLine) => {
                 stmts.push(stmt);
                 Ok(())
             },
@@ -3284,16 +3314,16 @@ impl Stmt {
     pub fn display(&self, indent: usize) {
         let indentation = " ".repeat(indent);
         match self {
-            Stmt::StringLiteral(s) => println!("{}StringLiteral({})", indentation, s),
-            Stmt::Expr(expr) => println!("{}Expr({})", indentation, expr),
-            Stmt::Assign(var, expr) => println!("{}Assign({}, {})", indentation, var, expr),
+            Stmt::StringLiteral(s, lineNum) => println!("{}StringLiteral({})", indentation, s),
+            Stmt::Expr(expr, lineNum) => println!("{}Expr({})", indentation, expr),
+            Stmt::Assign(var, expr, lineNum) => println!("{}Assign({}, {})", indentation, var, expr),
             
             // Stmt::ArrayAssign(var, index, expr) => println!("{}Index Assign({}[{}], {})", indentation, var, index, expr),
             
             
-            Stmt::VarDecl(var, vartype) => println!("{}VarDecl({}, {})", indentation, var, vartype),
-            Stmt::GlobVarDecl(var, vartype) => println!("{}GlobVarDecl({}, {})", indentation, var, vartype),
-            Stmt::If(cond, body, else_body) => {
+            Stmt::VarDecl(var, vartype, lineNum) => println!("{}VarDecl({}, {})", indentation, var, vartype),
+            Stmt::GlobVarDecl(var, vartype, lineNum) => println!("{}GlobVarDecl({}, {})", indentation, var, vartype),
+            Stmt::If(cond, body, else_body, lineNum) => {
                 println!("{}If (", indentation);
                 println!("{}  Condition: {}", indentation, cond);
                 println!("{}  Body: ", indentation);
@@ -3305,7 +3335,7 @@ impl Stmt {
                 println!("{})", indentation);
             }
 
-            Stmt::For(assignment, cond, body) => {
+            Stmt::For(assignment, cond, body, lineNum) => {
                 println!("{}For (", indentation);
                 println!("{}  Assignment: ", indentation);
                 assignment.display(indent + 3);
@@ -3317,16 +3347,16 @@ impl Stmt {
 
 
 
-            Stmt::Block(stmts) => {
+            Stmt::Block(stmts, lineNum) => {
                 println!("{}Block([", indentation);
                 for stmt in stmts {
                     stmt.display(indent + 2);
                 }
                 println!("{}])", indentation);
             },
-            Stmt::Error(reporting) => println!("{}Error({:?})", indentation, reporting),
-            Stmt::Return(expr) => println!("{}Return({})", indentation, expr),
-            Stmt::Program(name, header, body) => {
+            Stmt::Error(reporting, lineNum) => println!("{}Error({:?})", indentation, reporting),
+            Stmt::Return(expr, lineNum) => println!("{}Return({})", indentation, expr),
+            Stmt::Program(name, header, body, lineNum) => {
                 println!("{}{}:(", indentation,name);
                 println!(" {}Header:",indentation);
                 header.display(indent + 1);
@@ -3339,7 +3369,7 @@ impl Stmt {
             
             
 
-            Stmt::Procedure(procType, name, params, header, body) => {
+            Stmt::Procedure(procType, name, params, header, body, lineNum) => {
                 println!("{}{} {}:(", indentation,procType,name);
                 println!(" {}Params:",indentation);
                 params.display(indent + 1);
@@ -3356,7 +3386,7 @@ impl Stmt {
 
     pub fn extractExpr(&self) -> Result<Expr, String> {
         match self {
-            Stmt::Expr(expr) => Ok(expr.clone()), // Clone the expression to return it
+            Stmt::Expr(expr, lineNum) => Ok(expr.clone()), // Clone the expression to return it
             _ => Err("Provided statement is not an expression.".to_string()),
         }
     }
@@ -3453,13 +3483,13 @@ impl TypeChecker {
     //The main outward facing checker
     pub fn checkProgram(&mut self) -> bool {
         match &self.ast.clone() {
-            Stmt::Program(name, header, body) => {
+            Stmt::Program(name, header, body, lineNum) => {
                 
                 //Parses and checks the header
                 let head = header.clone();
                 let mut progHeader = *head;
                 // Check if the variable is a Block and iterate through it
-                if let Stmt::Block(ref instrs) = progHeader.clone() {
+                if let Stmt::Block(ref instrs, lineNum) = progHeader.clone() {
                     for instr in instrs {
                         let good = self.check(instr.clone());
                         if (!good){
@@ -3474,11 +3504,14 @@ impl TypeChecker {
                     println!("Problem with AST: header must be a Block");
                 }
 
+                println!("Finished checking header:");
+                // self.symbolTable.printTable();
+
                 //Parses and checks the body
                 let main = body.clone();
                 let mut progBody = *main;
                 // Check if the variable is a Block and iterate through it
-                if let Stmt::Block(ref instrs) = progBody {
+                if let Stmt::Block(ref instrs, lineNum) = progBody {
                     for instr in instrs {
                         let good = self.check(instr.clone());
                         if (!good){
@@ -3495,8 +3528,8 @@ impl TypeChecker {
 
 
 
-                println!("Finished checking header:");
-                self.symbolTable.printTable();
+                println!("Finished checking body:");
+                // self.symbolTable.printTable();
                 return true
             }
             _ => {
@@ -3509,20 +3542,33 @@ impl TypeChecker {
     //Checks each statement one at a time, returns a bool if there's an error
     pub fn check(&mut self, mut checkStmt: Stmt) -> bool{
         match (checkStmt){
-            Stmt::VarDecl(varName, varType) => {
-                self.symbolTable.symTab.insert(varName, HashItem::Var((varType)));
-                return true;
+            //For checking and declaring local variables
+            Stmt::VarDecl(varName, varType, lineNum) => {
+                if (self.symbolTable.symTab.contains_key(&varName.clone())) {
+                    println!("Error: variable: {} defined twice", varName.clone());
+                    return false;
+                } else {
+                    self.symbolTable.symTab.insert(varName, HashItem::Var((varType)));
+                    return true;
+                }
             }
-            Stmt::GlobVarDecl(varName, varType) => {
-                // println!("Global variable");
-                self.globalTable.symTab.insert(varName.clone(), HashItem::Var((varType.clone())));
-                return true;
+            //For checking and declaring global variables
+            Stmt::GlobVarDecl(varName, varType, lineNum) => {
+                if (self.globalTable.symTab.contains_key(&varName.clone())) {
+                    println!("Error: global variable: {} defined twice", varName.clone());
+                    return false;
+                } else {
+                    self.globalTable.symTab.insert(varName, HashItem::Var((varType)));
+                    return true;
+                }
             }
-            Stmt::Procedure(retType, procName, params, header, body) => {
+            //For checking a procedure
+            Stmt::Procedure(retType, procName, params, header, body, lineNum) => {
                 println!("procedure declaration");
                 return true;
             }
-            Stmt::Assign(valueToAssign, newValue) => {
+            //For checking a variable assignment
+            Stmt::Assign(valueToAssign, newValue, lineNum) => {
                 println!("Assign");
                 // Check if assigning to variable or not
                 if let Expr::VarRef(ref varName) = valueToAssign {
@@ -3532,7 +3578,7 @@ impl TypeChecker {
                         return true;
 
                     } else {
-                        println!("Reference to undeclared variable {} in line X", varName.clone());
+                        println!("Reference to undeclared variable {} in line {}", varName.clone(), lineNum.clone());
                         return false;
                     }
                 } else if let Expr::ArrayRef(varName, indexBox) = valueToAssign { 
@@ -3544,21 +3590,36 @@ impl TypeChecker {
                             println!("Need to check expression");
                             return true;
                         } else {
-                            println!("Variable {} is not an array. Line X", varName);
+                            println!("Variable {} is not an array. Line {}", varName, lineNum.clone());
                             return false;
                         }
                     } else {
-                        println!("Reference to undeclared variable {} in line X", varName.clone());
+                        println!("Reference to undeclared variable {} in line {}", varName.clone(), lineNum.clone());
                         return false;
                     }
                     
                 } else {
-                    println!("On line XX: cannot assign to non-variable");
+                    println!("On line {}: cannot assign to non-variable", lineNum.clone());
                 }
 
 
                 return true;
             }
+            //For Stmts that are just Exprs
+            Stmt::Expr(expr, lineNum) => {
+                println!("Expression statement");
+                match (expr){
+                    Expr::BinOp(op1, operator, op2) => {
+                        println!("Binary operator");
+                        return true;
+                    }
+                    _ => {
+                        println!("Unknown expression statement");
+                        return false;
+                    }
+                }
+            }
+            //For whatever is left
             _ => {
 
                 println!("Unaccounted");

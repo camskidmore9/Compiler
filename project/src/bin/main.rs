@@ -7,6 +7,7 @@
 #![allow(unused_mut)]
 #![allow(unused_variables)]
 
+//Crate imports
 extern crate anyhow;
 extern crate parse_display;
 extern crate utf8_chars;
@@ -14,29 +15,15 @@ extern crate unicode_segmentation;
 
 //package imports
 use {
-    unicode_segmentation::UnicodeSegmentation,
-    anyhow::Result,
-    parse_display::Display,
-    std::{
-        env,
-        fs::{
-            File,
-            read_to_string,
-        },
-        path::Path,
-        io::{
-            Read,
-            prelude::*,
-            BufReader,
-            BufRead
-        },
-        fmt,
-        collections::HashMap,
-        rc::Rc,
+    anyhow::Result, parse_display::Display, std::{
+        collections::HashMap, env, fmt, fs::{
+            read_to_string, File
+        }, hash::Hash, io::{
+            prelude::*, BufRead, BufReader, Read
+        }, path::Path, rc::Rc
 
 
-    },
-    utf8_chars::BufReadCharsExt,
+    }, unicode_segmentation::UnicodeSegmentation, utf8_chars::BufReadCharsExt
 };
 
 ///////////////////////// Setup /////////////////////////
@@ -171,36 +158,7 @@ impl fmt::Display for tokenTypeEnum {
     }
 }
 
-#[derive(Clone)]
-#[derive(PartialEq)]
-pub enum tokenGroup{
-    OPERATOR,
-    KEYWORD,
-    VARIABLE,
-    OTHER,
-    SYMBOL,
-    NUMBER,
-}
-
-impl fmt::Display for tokenGroup {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let variant_str = match self {
-            &tokenGroup::OPERATOR => "OPERATOR",
-            &tokenGroup::KEYWORD => "KEYWORD",
-            &tokenGroup::VARIABLE => "VARIABLE",
-            &tokenGroup::OTHER => "OTHER",
-            &tokenGroup::SYMBOL => "SYMBOL",
-            &tokenGroup::NUMBER => "NUMBER",
-
-        };
-        write!(f, "{}", variant_str)
-    }
-}
-
-
 ///////////////////////// /Setup /////////////////////////
-
-
 
 
 
@@ -807,6 +765,105 @@ struct tokenFunction{
     tokStr: String,
     argList: Token<>,
     returnType: Token,
+}
+
+//The structure for the SymbolTable. This holds all of the IDENTIFIERS of the program as well as their scope and information
+struct tokenTable{
+    // For now you can simply use a single hash table of tokens. As we move forward to parsing, the symbol table
+    // structure will have to be augmented to permit the recording of entering/exiting program scopes as well as
+    // the scope that an IDENTIFIER is declared. In general when you exit a scope the symbol table will remove
+    // any symbols defined in that scope from the symbol table. Again, we will solve this problem later; the
+    // example methods for scope entry/exit are here to deomonstrate what we will probably want in the future
+    tokTab: HashMap<String, Token>,
+}
+impl tokenTable{
+    // The symbol table hashLook function should automatically create a new entry and mark it as an
+    // IDENTIFIER Token for any IDENTIFIER string that is not already in the symbol table. In some languages
+    // case does not matter to the uniqueness of the symbol. In this case, an easy place to solve this is to simply
+    // upper case or lower case all strings in the symbol table API functions (and storage)
+    fn new() -> tokenTable {
+        //Creates the empty hash map
+        let mut symHash: HashMap<String, Token> = HashMap::new();
+
+        //List of all of the tokens that should be in the symbol table when initializes. Like all of the reserved words and such
+        let tokens = vec![
+            ("if", Token::new(tokenTypeEnum::IF, "if".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("else", Token::new(tokenTypeEnum::ELSE, "else".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("procedure", Token::new(tokenTypeEnum::PROCEDURE, "procedure".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("is", Token::new(tokenTypeEnum::IS, "is".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("global", Token::new(tokenTypeEnum::GLOBAL, "global".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("variable", Token::new(tokenTypeEnum::VARIABLE, "variable".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("begin", Token::new(tokenTypeEnum::BEGIN, "begin".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("then", Token::new(tokenTypeEnum::THEN, "then".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("end", Token::new(tokenTypeEnum::END, "end".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("program", Token::new(tokenTypeEnum::PROGRAM, "program".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("return", Token::new(tokenTypeEnum::RETURN, "return".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("for", Token::new(tokenTypeEnum::FOR, "for".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+
+
+
+        ];
+
+        for (key, value) in tokens {
+            symHash.insert(key.to_string(), value);
+        }
+
+        // println!("token table created and seeded");
+        // for (key, token) in &mut symHash {
+        //     println!("Key: {}, Token: {:?}", key, token.printToken());
+        // }
+
+
+        tokenTable{
+            tokTab: symHash,
+        }
+    }
+    //Returns the Token for a given string
+    fn hashLook(&mut self, mut lookupString: String, line: String) -> Token{
+        // println!("Looking up the identifier of the string");
+        if let Some(tokenResp) = self.tokTab.get(&lookupString){
+            // println!("Token found");
+            return tokenResp.clone();
+        } else {
+            // println!("Token not found, creating");
+            let newToken = Token::new(tokenTypeEnum::IDENTIFIER, lookupString, line.to_string(), tokenGroup::VARIABLE);
+            self.tokTab.insert(newToken.tokenString.clone(), newToken.clone());
+            return newToken;
+        }
+    }
+    // fn enterScope(){
+    //     println!("To be used in the future");
+    // }
+    // fn exitScope(){
+    //     println!("To be used in the future");
+    // }
+}
+
+//An enum used in conjunction with tokenType for parsing purposes
+#[derive(Clone)]
+#[derive(PartialEq)]
+pub enum tokenGroup{
+    OPERATOR,
+    KEYWORD,
+    VARIABLE,
+    OTHER,
+    SYMBOL,
+    NUMBER,
+}
+//Display for tokenGroup
+impl fmt::Display for tokenGroup {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let variant_str = match self {
+            &tokenGroup::OPERATOR => "OPERATOR",
+            &tokenGroup::KEYWORD => "KEYWORD",
+            &tokenGroup::VARIABLE => "VARIABLE",
+            &tokenGroup::OTHER => "OTHER",
+            &tokenGroup::SYMBOL => "SYMBOL",
+            &tokenGroup::NUMBER => "NUMBER",
+
+        };
+        write!(f, "{}", variant_str)
+    }
 }
 
 ///////////////////////// /LEXER SECTION /////////////////////////
@@ -2740,10 +2797,12 @@ impl Parser{
                             opBin = expr;
                         }
                         Err(err) => {
-                            println!("Error creating expression");
+                            // println!("Error creating expression");
                             let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
                             self.reports.reportError(errMsg);
-                            return Err("Error with operator".to_string());
+                            let errMsg =  format!("Error with operator on line {}", curStmt[0].lineNum);
+                            println!("{}", errMsg);
+                            return Err(errMsg);
                         }
                     }
                     
@@ -2823,8 +2882,9 @@ impl Parser{
                         Err(err) => {
                             println!("Error creating expression");
                             let errMsg = format!("Error with operator on line {}: {}", curStmt[0].lineNum, err);
-                            self.reports.reportError(errMsg);
-                            return Err("Error with operator".to_string());
+                            self.reports.reportError(errMsg.clone());
+                            println!("{}", errMsg.clone());
+                            return Err(errMsg);
                         }
                     }
 
@@ -3203,7 +3263,6 @@ pub enum Stmt {
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),  // If statement: condition, body, optional else body
     For(Rc<Stmt>, Expr, Box<Stmt>),          // For statement: assignment, condition, Box of commands for statement
     Block(Vec<Stmt>),               // Block statement: list of statements
-    // Procedure(String, VarType, Box<Stmt>),  //Procedure statement: Name of procedure, return type, statements 
     Error(Reporting),
     Return(Expr),
     Program(String, Box<Stmt>, Box<Stmt>), //The program AST: Name, the statements
@@ -3374,6 +3433,9 @@ fn printTokList(tokList: &Vec<Token>){
 struct TypeChecker {
     pub valid: bool,
     pub ast: Stmt,
+    pub scope: i32,
+    pub symbolTable: SymbolTable,
+    pub globalTable: SymbolTable,
 }
 impl TypeChecker {
     //The constructor
@@ -3381,32 +3443,60 @@ impl TypeChecker {
         TypeChecker{
             valid: true,
             ast: programAst.clone(),
+            scope: 0,
+            symbolTable: SymbolTable::new(),
+            globalTable: SymbolTable::new(),
+
         }
     }
 
     //The main outward facing checker
     pub fn checkProgram(&mut self) -> bool {
-        match &self.ast {
+        match &self.ast.clone() {
             Stmt::Program(name, header, body) => {
                 
                 //Parses and checks the header
                 let head = header.clone();
                 let mut progHeader = *head;
                 // Check if the variable is a Block and iterate through it
-                if let Stmt::Block(ref instrs) = progHeader {
+                if let Stmt::Block(ref instrs) = progHeader.clone() {
                     for instr in instrs {
                         let good = self.check(instr.clone());
                         if (!good){
-                            println!("Error in statement:");
+                            println!("Error in header:");
                             instr.display(0);
                             return false;
                         } else {
-                            println!("Statment good");
+                            // println!("Statment good");
                         }
                     }
                 } else {
-                    println!("Not a Block variant");
+                    println!("Problem with AST: header must be a Block");
                 }
+
+                //Parses and checks the body
+                let main = body.clone();
+                let mut progBody = *main;
+                // Check if the variable is a Block and iterate through it
+                if let Stmt::Block(ref instrs) = progBody {
+                    for instr in instrs {
+                        let good = self.check(instr.clone());
+                        if (!good){
+                            // println!("Error in body:");
+                            // instr.display(0);
+                            return false;
+                        } else {
+                            // println!("Statment good");
+                        }
+                    }
+                } else {
+                    println!("Problem with AST: header must be a Block");
+                }
+
+
+
+                println!("Finished checking header:");
+                self.symbolTable.printTable();
                 return true
             }
             _ => {
@@ -3420,6 +3510,53 @@ impl TypeChecker {
     pub fn check(&mut self, mut checkStmt: Stmt) -> bool{
         match (checkStmt){
             Stmt::VarDecl(varName, varType) => {
+                self.symbolTable.symTab.insert(varName, HashItem::Var((varType)));
+                return true;
+            }
+            Stmt::GlobVarDecl(varName, varType) => {
+                // println!("Global variable");
+                self.globalTable.symTab.insert(varName.clone(), HashItem::Var((varType.clone())));
+                return true;
+            }
+            Stmt::Procedure(retType, procName, params, header, body) => {
+                println!("procedure declaration");
+                return true;
+            }
+            Stmt::Assign(valueToAssign, newValue) => {
+                println!("Assign");
+                // Check if assigning to variable or not
+                if let Expr::VarRef(ref varName) = valueToAssign {
+                    if self.symbolTable.symTab.contains_key(&varName.clone()) || (self.globalTable.symTab.contains_key(&varName.clone())) {
+                        println!("Good variable reference");
+                        println!("Need to check expression");
+                        return true;
+
+                    } else {
+                        println!("Reference to undeclared variable {} in line X", varName.clone());
+                        return false;
+                    }
+                } else if let Expr::ArrayRef(varName, indexBox) = valueToAssign { 
+                    if (self.symbolTable.symTab.contains_key(&varName.clone())) || (self.globalTable.symTab.contains_key(&varName.clone())) {
+                        let value = VarType::IntArray;
+                        let varValue = self.symbolTable.symTab.get(&varName).clone();
+                        if let Some(keyValue) = varValue {
+                            println!("Good array reference");
+                            println!("Need to check expression");
+                            return true;
+                        } else {
+                            println!("Variable {} is not an array. Line X", varName);
+                            return false;
+                        }
+                    } else {
+                        println!("Reference to undeclared variable {} in line X", varName.clone());
+                        return false;
+                    }
+                    
+                } else {
+                    println!("On line XX: cannot assign to non-variable");
+                }
+
+
                 return true;
             }
             _ => {
@@ -3434,8 +3571,8 @@ impl TypeChecker {
 //An enum used for storing objects in the main hash map
 #[derive(Debug, Clone)]
 pub enum HashItem {
-    Var(VarType),           //Variable reference (type of variable)
-    Proc(VarType, HashMap<String, HashItem>, Stmt),    //Procedure (return type, procedure hash table, Proc AST)
+    Var(VarType),                                      //Variable reference (type of variable)
+    Proc(VarType, HashMap<String, HashItem>, Vec<Stmt>, Stmt),    //Procedure (return type, procedure hash table, list of parameter stmts, Proc AST)
 }
 //Assistive functions for hashItem
 impl HashItem {
@@ -3443,8 +3580,9 @@ impl HashItem {
         let indentation = " ".repeat(indent);
         match self {
             HashItem::Var(s) => println!("{}Variable type({})", indentation, s),
-            HashItem::Proc(t, map, ast) => {
+            HashItem::Proc(t, map, params, ast) => {
                 println!("{}Procedure type: {}", indentation, t);
+                // println!("{}Params: {:?}", indentation, params);
                 println!("{}Map: {:?}", indentation, map);
                 println!("AST:");
                 ast.display(indent + 1);
@@ -3454,64 +3592,72 @@ impl HashItem {
 }
 
 //The structure for the SymbolTable. This holds all of the IDENTIFIERS of the program as well as their scope and information
-struct symbolTable{
-    symTab: HashMap<String, Token>,
+#[derive(Debug, Clone)]
+struct SymbolTable{
+    symTab: HashMap<String, HashItem>,
 }
-impl symbolTable{
+impl SymbolTable{
     // The symbol table hashLook function should automatically create a new entry and mark it as an
     // IDENTIFIER Token for any IDENTIFIER string that is not already in the symbol table. In some languages
     // case does not matter to the uniqueness of the symbol. In this case, an easy place to solve this is to simply
     // upper case or lower case all strings in the symbol table API functions (and storage)
-    fn new() -> symbolTable {
+    fn new() -> SymbolTable {
         //Creates the empty hash map
-        let mut symHash: HashMap<String, Token> = HashMap::new();
+        let mut symHash: HashMap<String, HashItem> = HashMap::new();
 
-        //List of all of the tokens that should be in the symbol table when initializes. Like all of the reserved words and such
-        let tokens = vec![
-            ("if", Token::new(tokenTypeEnum::IF, "if".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("else", Token::new(tokenTypeEnum::ELSE, "else".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("procedure", Token::new(tokenTypeEnum::PROCEDURE, "procedure".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("is", Token::new(tokenTypeEnum::IS, "is".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("global", Token::new(tokenTypeEnum::GLOBAL, "global".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("variable", Token::new(tokenTypeEnum::VARIABLE, "variable".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("begin", Token::new(tokenTypeEnum::BEGIN, "begin".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("then", Token::new(tokenTypeEnum::THEN, "then".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("end", Token::new(tokenTypeEnum::END, "end".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("program", Token::new(tokenTypeEnum::PROGRAM, "program".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("return", Token::new(tokenTypeEnum::RETURN, "return".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("for", Token::new(tokenTypeEnum::FOR, "for".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+        // //THESE NEED TO BE WRITTEN TO INCLUDE ACTUAL STUFF
+        // let mut builtInHash: HashMap<String, HashItem> = HashMap::new();
+        // let builtInStmt = Stmt::StringLiteral(("NULL".to_string()));
+        // let builtInParams = Vec::new();
+        // //Seeding the symbol table with the built in functions
+        // let builtIns = vec![
+        //     ("getbool", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
+        //     ("getinteger", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
+        //     ("getstring", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
+        //     ("putbool", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
+        //     ("putinteger", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
+        //     ("putfloat", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
+        //     ("putstring", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
+        //     ("sqrt", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
+            
+        // ];
+        // //Inserted seed values into hash table
+        // for (key, value) in builtIns {
+        //     symHash.insert(key.to_string(), value);
+        // }
 
-
-
-        ];
-
-        for (key, value) in tokens {
-            symHash.insert(key.to_string(), value);
-        }
-
-        println!("Symbol table created and seeded");
+        // println!("symbol table created");
         // for (key, token) in &mut symHash {
         //     println!("Key: {}, Token: {:?}", key, token.printToken());
         // }
 
 
-        symbolTable{
+        SymbolTable{
             symTab: symHash,
         }
     }
-    //Returns the Token for a given string
-    fn hashLook(&mut self, mut lookupString: String, line: String) -> Token{
-        // println!("Looking up the identifier of the string");
-        if let Some(tokenResp) = self.symTab.get(&lookupString){
-            // println!("Token found");
-            return tokenResp.clone();
-        } else {
-            // println!("Token not found, creating");
-            let newToken = Token::new(tokenTypeEnum::IDENTIFIER, lookupString, line.to_string(), tokenGroup::VARIABLE);
-            self.symTab.insert(newToken.tokenString.clone(), newToken.clone());
-            return newToken;
+    
+    //Prints the hash table in a nice format
+    pub fn printTable(&self) {
+        for (key, value) in &self.symTab {
+            println!("\n-{}:", key);
+            value.display(3);
         }
     }
+    
+    //Returns the Token for a given string
+    // fn hashLook(&mut self, mut lookupString: String, line: String) -> HashItem{
+    //     // println!("Looking up the identifier of the string");
+    //     if let Some(tokenResp) = self.symTab.get(&lookupString){
+    //         // println!("Token found");
+    //         return tokenResp.clone();
+    //     } else {
+    //         // println!("Token not found, creating");
+    //         let newToken = Token::new(tokenTypeEnum::IDENTIFIER, lookupString, line.to_string(), tokenGroup::VARIABLE);
+    //         self.symTab.insert(newToken.tokenString.clone(), newToken.clone());
+    //         return Err;
+    //     }
+    // }
     // fn enterScope(){
     //     println!("To be used in the future");
     // }
@@ -3524,77 +3670,6 @@ impl symbolTable{
     
 
 
-//The structure for the SymbolTable. This holds all of the IDENTIFIERS of the program as well as their scope and information
-struct tokenTable{
-    // For now you can simply use a single hash table of tokens. As we move forward to parsing, the symbol table
-    // structure will have to be augmented to permit the recording of entering/exiting program scopes as well as
-    // the scope that an IDENTIFIER is declared. In general when you exit a scope the symbol table will remove
-    // any symbols defined in that scope from the symbol table. Again, we will solve this problem later; the
-    // example methods for scope entry/exit are here to deomonstrate what we will probably want in the future
-    tokTab: HashMap<String, Token>,
-}
-impl tokenTable{
-    // The symbol table hashLook function should automatically create a new entry and mark it as an
-    // IDENTIFIER Token for any IDENTIFIER string that is not already in the symbol table. In some languages
-    // case does not matter to the uniqueness of the symbol. In this case, an easy place to solve this is to simply
-    // upper case or lower case all strings in the symbol table API functions (and storage)
-    fn new() -> tokenTable {
-        //Creates the empty hash map
-        let mut symHash: HashMap<String, Token> = HashMap::new();
-
-        //List of all of the tokens that should be in the symbol table when initializes. Like all of the reserved words and such
-        let tokens = vec![
-            ("if", Token::new(tokenTypeEnum::IF, "if".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("else", Token::new(tokenTypeEnum::ELSE, "else".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("procedure", Token::new(tokenTypeEnum::PROCEDURE, "procedure".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("is", Token::new(tokenTypeEnum::IS, "is".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("global", Token::new(tokenTypeEnum::GLOBAL, "global".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("variable", Token::new(tokenTypeEnum::VARIABLE, "variable".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("begin", Token::new(tokenTypeEnum::BEGIN, "begin".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("then", Token::new(tokenTypeEnum::THEN, "then".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("end", Token::new(tokenTypeEnum::END, "end".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("program", Token::new(tokenTypeEnum::PROGRAM, "program".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("return", Token::new(tokenTypeEnum::RETURN, "return".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-            ("for", Token::new(tokenTypeEnum::FOR, "for".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
-
-
-
-        ];
-
-        for (key, value) in tokens {
-            symHash.insert(key.to_string(), value);
-        }
-
-        println!("Symbol table created and seeded");
-        // for (key, token) in &mut symHash {
-        //     println!("Key: {}, Token: {:?}", key, token.printToken());
-        // }
-
-
-        tokenTable{
-            tokTab: symHash,
-        }
-    }
-    //Returns the Token for a given string
-    fn hashLook(&mut self, mut lookupString: String, line: String) -> Token{
-        // println!("Looking up the identifier of the string");
-        if let Some(tokenResp) = self.tokTab.get(&lookupString){
-            // println!("Token found");
-            return tokenResp.clone();
-        } else {
-            // println!("Token not found, creating");
-            let newToken = Token::new(tokenTypeEnum::IDENTIFIER, lookupString, line.to_string(), tokenGroup::VARIABLE);
-            self.tokTab.insert(newToken.tokenString.clone(), newToken.clone());
-            return newToken;
-        }
-    }
-    // fn enterScope(){
-    //     println!("To be used in the future");
-    // }
-    // fn exitScope(){
-    //     println!("To be used in the future");
-    // }
-}
 
 
 
@@ -3639,6 +3714,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Handle the error gracefully, log, recover, etc.
         }
     }
+
+    // programAst.display(0);
 
     println!("\n\nTypeChecker Created");
     let mut myChecker = TypeChecker::new(programAst);

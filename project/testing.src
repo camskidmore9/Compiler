@@ -3,28 +3,32 @@ program MyTestProgram is
 variable value : integer;
 variable tmp2 : float;  //this variable will be hidden by the declaration in Fib
 variable out : bool;
-variable myArray : integer[15];
-
+//variable myArray : integer[15];
+global variable x: integer;
 
 begin
 
-if(val == 1) then
-    ret := 1;
-    return ret;
-end if;
 
-//i[4] := 10;
-//i[3] := -1;
-
-//i:= 1110 + 1;
-//i:= 9 + (1 + (5 + x)) + (x + 1);
-
-
-return val + Fib(x);
-
-//max := getInteger(1, x);
+//StringLiteral(String),
+//Expr(Expr),                     // Expression statement
+//Assign(Expr, Expr),           // Assignment statement: variable refernce, expression to assign to
+//VarDecl(String, VarType),       // Variable declaration statement
+//GlobVarDecl(String, VarType),       // Variable declaration statement
+//If(Expr, Box<Stmt>, Option<Box<Stmt>>),  // If statement: condition, body, optional else body
+//For(Rc<Stmt>, Expr, Box<Stmt>),          // For statement: assignment, condition, Box of commands for statement
+//Block(Vec<Stmt>),               // Block statement: list of statements
+//Error(Reporting),
+//Return(Expr),
+//Program(String, Box<Stmt>, Box<Stmt>), //The program AST: Name, the statements
+//Procedure(VarType, String, Box<Stmt>, Box<Stmt>, Box<Stmt>), //Procedure AST: type, Name, parameter, Header, body
 
 
+x := 5 + 1;
 
+x := val + 1;
+
+z[5] := 6;
 
 end program.
+
+

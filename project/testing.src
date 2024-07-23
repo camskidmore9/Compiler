@@ -4,13 +4,29 @@ variable value : integer;
 variable tmp2 : float;  //this variable will be hidden by the declaration in Fib
 variable out : bool;
 //variable out : bool;
-
 //variable myArray : integer[15];
 global variable x: integer;
 
+
+procedure Fib : integer(variable val :integer)
+	procedure Sub : integer(variable val1 : integer)
+		begin
+			return val1 - 1;
+		end procedure;
+
+	begin
+	if(val == 0) then
+		return 0;
+	end if;
+	if(val == 1) then
+		return 1;
+	end if;
+	return val + Fib(Sub(val));
+end procedure;
+
 begin
 
-
+//Stmts:
 //StringLiteral(String),
 //Expr(Expr),                     // Expression statement
 //Assign(Expr, Expr),           // Assignment statement: variable refernce, expression to assign to
@@ -23,6 +39,16 @@ begin
 //Return(Expr),
 //Program(String, Box<Stmt>, Box<Stmt>), //The program AST: Name, the statements
 //Procedure(VarType, String, Box<Stmt>, Box<Stmt>, Box<Stmt>), //Procedure AST: type, Name, parameter, Header, body
+
+//Exprs:
+//IntLiteral(i64),                        //An integer literal (int value)
+//FloatLiteral(f64),                      //A float literal (float value)
+//StringLiteral(String),                  //A string literal (the string)
+//VarRef(String),                         //A reference to a variable (variable name)
+//ArrayRef(String, Box<Expr>),            //A reference to an array index (array name, Box of the index value)
+//BinOp(Box<Expr>, BinOp, Box<Expr>),     //A binary Operation, (Operand 1, an instance of the BinOp enum, Operand 2)
+//CondOp(Box<Expr>, BinOp, Box<Expr>),     //A conditional/comparator operation (operand 1, operator (<, >, etc.), operand 2) 
+//ProcCall(String, Option<Vec<Expr>>),    //Procedure calls: the name of the procedure, an optional box of a Block of Exprs for the parameters 
 
 
 x := 5 + 1;

@@ -1,6 +1,6 @@
 program MyTestProgram is
 
-variable value : integer;
+variable value : integer[15];
 variable tmp2 : float;  //this variable will be hidden by the declaration in Fib
 variable out : bool;
 //variable out : bool;
@@ -8,21 +8,6 @@ variable out : bool;
 global variable x: integer;
 
 
-procedure Fib : integer(variable val :integer)
-	procedure Sub : integer(variable val1 : integer)
-		begin
-			return val1 - 1;
-		end procedure;
-
-	begin
-	if(val == 0) then
-		return 0;
-	end if;
-	if(val == 1) then
-		return 1;
-	end if;
-	return val + Fib(Sub(val));
-end procedure;
 
 begin
 
@@ -41,19 +26,31 @@ begin
 //Procedure(VarType, String, Box<Stmt>, Box<Stmt>, Box<Stmt>), //Procedure AST: type, Name, parameter, Header, body
 
 //Exprs:
-//IntLiteral(i64),                        //An integer literal (int value)
-//FloatLiteral(f64),                      //A float literal (float value)
-//StringLiteral(String),                  //A string literal (the string)
-//VarRef(String),                         //A reference to a variable (variable name)
-//ArrayRef(String, Box<Expr>),            //A reference to an array index (array name, Box of the index value)
-//BinOp(Box<Expr>, BinOp, Box<Expr>),     //A binary Operation, (Operand 1, an instance of the BinOp enum, Operand 2)
-//CondOp(Box<Expr>, BinOp, Box<Expr>),     //A conditional/comparator operation (operand 1, operator (<, >, etc.), operand 2) 
-//ProcCall(String, Option<Vec<Expr>>),    //Procedure calls: the name of the procedure, an optional box of a Block of Exprs for the parameters 
+////Literals
+//IntLiteral(i64),                            //An integer literal (int value)
+//FloatLiteral(f64),                          //A float literal (float value)
+//StringLiteral(String),                      //A string literal (the string)
+//BoolLiteral(bool),
+//IntArrayLiteral(i32, Vec<i64>),             //An integer array literal
+//
+////References
+//VarRef(String),                             //A reference to a variable (variable name)
+//ProcRef(String, Option<Vec<Expr>>),         //Procedure calls: the name of the procedure, an optional box of a Block of Exprs for the parameters 
+//ArrayRef(String, Box<Expr>),                //A reference to an array index (array name, Box of the index value)
+//                                        //                               This is a box because it can be an intliteral or BinOp
+//
+////Operations
+//ArthOp(Box<Expr>, Operator, Box<Expr>),     //An arthmetic Operation, (Operand 1, an instance of the BinOp enum, Operand 2)
+//                                        //                      These are boxes because they can contain more BinOps within themselves     
+//RelOp(Box<Expr>, Operator, Box<Expr>),      //A relational operation (operand 1, operator (<, >, etc.), operand 2) 
+//LogOp(Box<Expr>, Operator, Box<Expr>),      //Operator for logical/bitwise equations (op1, operator (&, |, !), op2)
 
 
-x := 5 + 1;
+value[85] := 5;
 
-x := val + 1;
+//x := 5 + 1;
+
+//x := val + 1;
 
 //z[5] := 6;
 

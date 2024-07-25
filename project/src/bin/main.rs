@@ -43,8 +43,12 @@ pub enum tokenTypeEnum{
     GREATER_EQUALS,
     SET_EQUALS,
     CHECK_EQUALS,
+    NOT_EQUALS,
     MULTIPLY,
     DIVIDE,
+    AND,
+    OR,
+    NOT,
     // OPERATOR,
     
     
@@ -148,6 +152,12 @@ impl fmt::Display for tokenTypeEnum {
             tokenTypeEnum::END_FOR => "END_FOR",
             tokenTypeEnum::FOR => "FOR",
             tokenTypeEnum::PROCEDURE_CALL => "PROCEDURE_CALL",
+            tokenTypeEnum::AND => "AND",
+            tokenTypeEnum::OR => "OR",
+            tokenTypeEnum::NOT => "NOT",
+            tokenTypeEnum::NOT_EQUALS => "NOT_EQUALS",
+
+
 
             // tokenTypeEnum::OPERATOR => "OPERATOR",
 
@@ -396,6 +406,28 @@ impl Lexer{
                 }
             }
 
+
+            //If the character is a =
+            Some('!') => {
+                //println!("This character is a <.");
+                tokenString.push('!');
+                let mut nextNextChar = self.inputFile.getChar();
+                let Some(nextC) = nextNextChar else { todo!() };
+                if nextC == '=' {
+                    // println!("This is a >=");
+                    tokenString.push('=');
+
+                    let newToken = Token::new(crate::tokenTypeEnum::NOT_EQUALS,tokenString, self.inputFile.lineCnt.to_string(), tokenGroup::OPERATOR);
+                    return newToken;
+                } else {
+                    // println!("ERROR");
+
+                    self.inputFile.unGetChar();
+                    let newToken = Token::new(crate::tokenTypeEnum::ERROR,tokenString, self.inputFile.lineCnt.to_string(), tokenGroup::OTHER);
+                    return newToken;
+                }
+            }
+
             //If the character is a ;
             Some(';') => {
                 // println!("Current line: {}", self.inputFile.lineCnt.to_string());
@@ -472,6 +504,7 @@ impl Lexer{
                 
             }
 
+
             Some('*') => {
                 tokenString.push('*');
                 let newToken = Token::new(crate::tokenTypeEnum::MULTIPLY,tokenString, self.inputFile.lineCnt.to_string(), tokenGroup::OPERATOR);
@@ -496,6 +529,28 @@ impl Lexer{
                 let newToken = Token::new(crate::tokenTypeEnum::PERIOD,tokenString, self.inputFile.lineCnt.to_string(), tokenGroup::SYMBOL);
                 return newToken;
             }
+
+            //If the character is a &
+            Some('&') => {
+                tokenString.push('&');
+                let newToken = Token::new(crate::tokenTypeEnum::AND,tokenString, self.inputFile.lineCnt.to_string(), tokenGroup::OPERATOR);
+                return newToken;
+            }
+
+            //If the character is a |
+            Some('|') => {
+                tokenString.push('|');
+                let newToken = Token::new(crate::tokenTypeEnum::OR,tokenString, self.inputFile.lineCnt.to_string(), tokenGroup::OPERATOR);
+                return newToken;
+            }
+
+            // //If the character is a |
+            // Some('|') => {
+            //     tokenString.push('|');
+            //     let newToken = Token::new(crate::tokenTypeEnum::OR,tokenString, self.inputFile.lineCnt.to_string(), tokenGroup::OPERATOR);
+            //     return newToken;
+            // }
+            
 
             // Some(',') => {
             //     tokenString.push(',');
@@ -798,6 +853,7 @@ impl tokenTable{
             ("program", Token::new(tokenTypeEnum::PROGRAM, "program".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
             ("return", Token::new(tokenTypeEnum::RETURN, "return".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
             ("for", Token::new(tokenTypeEnum::FOR, "for".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
+            ("not", Token::new(tokenTypeEnum::NOT, "not".to_string(), "0".to_string(), tokenGroup::OPERATOR)),
 
 
 
@@ -1213,8 +1269,8 @@ impl Parser{
             // println!("Complex expression");
 
             let operand1 = varRef;
-            let operatorRes = BinOp::new(curStmt[1].tt.clone());
-            let mut operator: BinOp;
+            let operatorRes = Operator::new(curStmt[1].tt.clone());
+            let mut operator: Operator;
             match operatorRes {
                 Ok(op) => {
                     operator = op;
@@ -2788,8 +2844,8 @@ impl Parser{
                         }
                     }
                 
-                    let operator = BinOp::new(curStmt[1].tt.clone());
-                    let mut opBin:BinOp; 
+                    let operator = Operator::new(curStmt[1].tt.clone());
+                    let mut opBin:Operator; 
                     match operator {
                         Ok(expr) => {
                             opBin = expr;
@@ -2871,8 +2927,8 @@ impl Parser{
                     // println!("Operand 2: {}", op2Expr);
 
 
-                    let operator = BinOp::new(curStmt[1].tt.clone());
-                    let mut opBin:BinOp; 
+                    let operator = Operator::new(curStmt[1].tt.clone());
+                    let mut opBin:Operator; 
                     match operator {
                         Ok(expr) => {
                             opBin = expr;
@@ -2956,8 +3012,8 @@ impl Parser{
                         }
                     }
                 
-                    let operator = BinOp::new(curStmt[1].tt.clone());
-                    let mut opBin:BinOp; 
+                    let operator = Operator::new(curStmt[1].tt.clone());
+                    let mut opBin:Operator; 
                     match operator {
                         Ok(expr) => {
                             opBin = expr;
@@ -3039,8 +3095,8 @@ impl Parser{
                     // println!("Operand 2: {}", op2Expr);
 
 
-                    let operator = BinOp::new(curStmt[1].tt.clone());
-                    let mut opBin:BinOp; 
+                    let operator = Operator::new(curStmt[1].tt.clone());
+                    let mut opBin:Operator; 
                     match operator {
                         Ok(expr) => {
                             opBin = expr;
@@ -3097,7 +3153,7 @@ impl Parser{
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum BinOp {
+pub enum Operator {
     Add,
     Sub,
     Mul,
@@ -3107,38 +3163,50 @@ pub enum BinOp {
     Greater_Equal,
     Less_Equal,
     Check_Equal,
+    And,
+    Or,
+    Not,
+    Not_Equals,
 }
 
-impl BinOp {
+impl Operator {
     pub fn new(op_str: tokenTypeEnum) -> Result<Self, String> {
         match op_str {
-            tokenTypeEnum::PLUS => Ok(BinOp::Add),
-            tokenTypeEnum::MINUS => Ok(BinOp::Sub),
-            tokenTypeEnum::MULTIPLY => Ok(BinOp::Mul),
-            tokenTypeEnum::DIVIDE => Ok(BinOp::Div),
-            tokenTypeEnum::GREATER => Ok(BinOp::Greater),
-            tokenTypeEnum::LESS => Ok(BinOp::Less),
-            tokenTypeEnum::GREATER_EQUALS => Ok(BinOp::Greater_Equal),
-            tokenTypeEnum::LESS_EQUALS => Ok(BinOp::Less_Equal),
-            tokenTypeEnum::CHECK_EQUALS => Ok(BinOp::Check_Equal),
+            tokenTypeEnum::PLUS => Ok(Operator::Add),
+            tokenTypeEnum::MINUS => Ok(Operator::Sub),
+            tokenTypeEnum::MULTIPLY => Ok(Operator::Mul),
+            tokenTypeEnum::DIVIDE => Ok(Operator::Div),
+            tokenTypeEnum::GREATER => Ok(Operator::Greater),
+            tokenTypeEnum::LESS => Ok(Operator::Less),
+            tokenTypeEnum::GREATER_EQUALS => Ok(Operator::Greater_Equal),
+            tokenTypeEnum::LESS_EQUALS => Ok(Operator::Less_Equal),
+            tokenTypeEnum::CHECK_EQUALS => Ok(Operator::Check_Equal),
+            tokenTypeEnum::AND => Ok(Operator::And),
+            tokenTypeEnum::OR => Ok(Operator::Or),
+            tokenTypeEnum::NOT => Ok(Operator::Not),
+            tokenTypeEnum::NOT_EQUALS => Ok(Operator::Not_Equals),
+
             _ => Err(format!("Unsupported operator: {}", op_str)),
         }
     }
 }
 
-impl fmt::Display for BinOp {
+impl fmt::Display for Operator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BinOp::Add => write!(f, "+"),
-            BinOp::Sub => write!(f, "-"),
-            BinOp::Mul => write!(f, "*"),
-            BinOp::Div => write!(f, "/"),
-            BinOp::Greater => write!(f, ">"),
-            BinOp::Less => write!(f, "<"),
-            BinOp::Greater_Equal => write!(f, ">="),
-            BinOp::Less_Equal => write!(f, "<="),
-            BinOp::Check_Equal => write!(f, "=="),
-
+            Operator::Add => write!(f, "+"),
+            Operator::Sub => write!(f, "-"),
+            Operator::Mul => write!(f, "*"),
+            Operator::Div => write!(f, "/"),
+            Operator::Greater => write!(f, ">"),
+            Operator::Less => write!(f, "<"),
+            Operator::Greater_Equal => write!(f, ">="),
+            Operator::Less_Equal => write!(f, "<="),
+            Operator::Check_Equal => write!(f, "=="),
+            Operator::And => write!(f, "&"),
+            Operator::Or => write!(f, "|"),
+            Operator::Not => write!(f, "not"),
+            Operator::Not_Equals => write!(f, "!="),
         }
     }
 }
@@ -3146,18 +3214,24 @@ impl fmt::Display for BinOp {
 // Define types of expressions
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    IntLiteral(i64),                        //An integer literal (int value)
-    FloatLiteral(f64),                      //A float literal (float value)
-    StringLiteral(String),                  //A string literal (the string)
-    VarRef(String),                         //A reference to a variable (variable name)
-    ProcRef(String, Option<Vec<Expr>>),    //Procedure calls: the name of the procedure, an optional box of a Block of Exprs for the parameters 
-    ArrayRef(String, Box<Expr>),            //A reference to an array index (array name, Box of the index value)
-                                            //                               This is a box because it can be an intliteral or BinOp
-    BinOp(Box<Expr>, BinOp, Box<Expr>),     //A binary Operation, (Operand 1, an instance of the BinOp enum, Operand 2)
-                                            //                      These are boxes because they can contain more BinOps within themselves     
-    CondOp(Box<Expr>, BinOp, Box<Expr>),     //A conditional/comparator operation (operand 1, operator (<, >, etc.), operand 2) 
+    //Literals
+    IntLiteral(i64),                            //An integer literal (int value)
+    FloatLiteral(f64),                          //A float literal (float value)
+    StringLiteral(String),                      //A string literal (the string)
+    BoolLiteral(bool),
+    IntArrayLiteral(i32, Vec<i64>),             //An integer array literal
     
-    // ArrayAssign(Box<Expr>, Box<Expr>),
+    //References
+    VarRef(String),                             //A reference to a variable (variable name)
+    ProcRef(String, Option<Vec<Expr>>),         //Procedure calls: the name of the procedure, an optional box of a Block of Exprs for the parameters 
+    ArrayRef(String, Box<Expr>),                //A reference to an array index (array name, Box of the index value)
+                                            //                               This is a box because it can be an intliteral or BinOp
+    
+    //Operations
+    ArthOp(Box<Expr>, Operator, Box<Expr>),     //An arthmetic Operation, (Operand 1, an instance of the BinOp enum, Operand 2)
+                                            //                      These are boxes because they can contain more BinOps within themselves     
+    RelOp(Box<Expr>, Operator, Box<Expr>),      //A relational operation (operand 1, operator (<, >, etc.), operand 2) 
+    LogOp(Box<Expr>, Operator, Box<Expr>),      //Operator for logical/bitwise equations (op1, operator (&, |, !), op2)
 
     
 }
@@ -3198,27 +3272,42 @@ impl Expr {
         }
     }
 
-    pub fn newOp(op1: Box<Expr>, operand: BinOp, op2: Box<Expr>) -> Expr {
+    pub fn newOp(op1: Box<Expr>, operand: Operator, op2: Box<Expr>) -> Expr {
         match operand{
-            BinOp::Check_Equal => {
-                println!("PENISBALL CHECK EQUAL");
-                return  Expr::CondOp(op1, operand, op2);
+            //Relational operators
+            Operator::Check_Equal => {
+                return  Expr::RelOp(op1, operand, op2);
             }
-            BinOp::Greater => {
-                return  Expr::CondOp(Box::new(*op1), operand, Box::new(*op2));
+            Operator::Greater => {
+                return  Expr::RelOp(Box::new(*op1), operand, Box::new(*op2));
             }
-            BinOp::Greater_Equal => {
-                return  Expr::CondOp(Box::new(*op1), operand, Box::new(*op2));
+            Operator::Greater_Equal => {
+                return  Expr::RelOp(Box::new(*op1), operand, Box::new(*op2));
             }
-            BinOp::Less_Equal => {
-                return  Expr::CondOp(Box::new(*op1), operand, Box::new(*op2));
+            Operator::Less_Equal => {
+                return  Expr::RelOp(Box::new(*op1), operand, Box::new(*op2));
             }
-            BinOp::Less => {
-                return  Expr::CondOp(Box::new(*op1), operand, Box::new(*op2));
+            Operator::Less => {
+                return  Expr::RelOp(Box::new(*op1), operand, Box::new(*op2));
+            }
+            Operator::Not_Equals => {
+                return  Expr::RelOp(Box::new(*op1), operand, Box::new(*op2));
             }
             
+            //Logical Operators
+            Operator::And => {
+                return  Expr::LogOp(Box::new(*op1), operand, Box::new(*op2));
+            }
+            Operator::Or => {
+                return  Expr::LogOp(Box::new(*op1), operand, Box::new(*op2));
+            }
+            Operator::Not => {
+                return  Expr::LogOp(Box::new(*op1), operand, Box::new(*op2));
+            }
+
+            //The remainder (arthmetic operators)
             _ => {
-                return  Expr::BinOp(Box::new(*op1), operand, Box::new(*op2));
+                return  Expr::ArthOp(Box::new(*op1), operand, Box::new(*op2));
             }
         }
     }
@@ -3231,7 +3320,7 @@ impl fmt::Display for Expr {
             Expr::IntLiteral(i) => write!(f, "{}", i),
             Expr::StringLiteral(s) => write!(f, "{}", s),
             Expr::FloatLiteral(n) => write!(f, "{}", n),
-            Expr::BinOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
+            Expr::ArthOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
             Expr::VarRef(var) => write!(f, "{}", var),
             Expr::ArrayRef(var, index) => write!(f, "({}[{}])", var, index),
             Expr::ProcRef(name, Some(params)) => {
@@ -3239,7 +3328,10 @@ impl fmt::Display for Expr {
                 write!(f, "{}({})", name, params_str)
             },
             Expr::ProcRef(name, None) => write!(f, "{}()", name),
-            Expr::CondOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
+            Expr::RelOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
+            Expr::LogOp(left, op, right) => write!(f, "({} {} {})", left, op, right),
+            Expr::BoolLiteral(val) => write!(f, "{}", val),
+            Expr::IntArrayLiteral(size, array) => write!(f, "([{}])", size),
 
         }
     }
@@ -3479,14 +3571,16 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    pub fn newScope(&mut self, mut procAst: Stmt) -> TypeChecker {
-        TypeChecker{
+    pub fn newScope<'b>(&'b mut self, procAst: Stmt, curScope: i32) -> TypeChecker<'b>
+    where
+        'a: 'b, // Ensures the globalTable lifetime lives long enough
+    {
+        TypeChecker {
             valid: true,
-            ast: procAst.clone(),
-            scope: (self.scope.clone()) + 1,
+            ast: procAst,
+            scope: curScope + 1,
             symbolTable: SymbolTable::new(),
-            globalTable: self.globalTable,
-
+            globalTable: self.globalTable, // Reuse the mutable reference to the global table
         }
     }
 
@@ -3501,7 +3595,7 @@ impl<'a> TypeChecker<'a> {
                 // Check if the variable is a Block and iterate through it
                 if let Stmt::Block(ref instrs, lineNum) = progHeader.clone() {
                     for instr in instrs {
-                        let good = self.check(instr.clone());
+                        let good = self.checkStmt(instr.clone());
                         if (!good){
                             println!("Error in header:");
                             instr.display(0);
@@ -3523,7 +3617,7 @@ impl<'a> TypeChecker<'a> {
                 // Check if the variable is a Block and iterate through it
                 if let Stmt::Block(ref instrs, lineNum) = progBody {
                     for instr in instrs {
-                        let good = self.check(instr.clone());
+                        let good = self.checkStmt(instr.clone());
                         if (!good){
                             // println!("Error in body:");
                             // instr.display(0);
@@ -3561,44 +3655,65 @@ impl<'a> TypeChecker<'a> {
     
 
     //Checks each statement one at a time, returns a bool if there's an error
-    pub fn check(&mut self, mut checkStmt: Stmt) -> bool{
+    pub fn checkStmt(&mut self, mut checkStmt: Stmt) -> bool{
         match (checkStmt){
             //For checking and declaring local variables
             Stmt::VarDecl(varName, varType, lineNum) => {
-                let defined = self.symbolTable.checkItem(&varName.clone());
-                if(defined){
-                    println!("Error: variable: {} defined twice", varName.clone());
-                    return false;
+                if self.scope != 0 {
+                    let defined = self.symbolTable.checkItem(&varName.clone());
+                    if(defined){
+                        println!("Error: variable: {} defined twice", varName.clone());
+                        return false;
+                    } else {
+                        println!("Adding value {} to local table", varName.clone());
+                        let item = HashItem::newVar(varName.clone(), varType.clone());
+                        self.symbolTable.symTab.insert(varName.clone(), item.clone());
+                        return true;
+                    }
                 } else {
-                    let item = HashItem::newVar(varName.clone(), varType.clone());
-                    self.symbolTable.symTab.insert(varName.clone(), item.clone());
-                    return true;
+                    let defined = self.globalTable.checkItem(&varName.clone());
+                    if(defined){
+                        println!("Error: variable: {} defined twice", varName.clone());
+                        return false;
+                    } else {
+                        println!("Adding value {} to global table", varName.clone());
+                        let item = HashItem::newVar(varName.clone(), varType.clone());
+                        self.globalTable.symTab.insert(varName.clone(), item.clone());
+                        return true;
+                    }
                 }
+                
+                
             }
             //For checking and declaring global variables
             Stmt::GlobVarDecl(varName, varType, lineNum) => {
+
                 let defined = self.globalTable.checkItem(&varName.clone());
                 if(defined){
                     println!("Error: variable: {} defined twice", varName.clone());
                     return false;
                 } else {
+                    println!("Adding value {} to global table", varName.clone());
                     let item = HashItem::newVar(varName.clone(), varType.clone());
-                    self.symbolTable.symTab.insert(varName.clone(), item.clone());
+                    self.globalTable.symTab.insert(varName.clone(), item.clone());
                     return true;
                 }
+                    
             }
             //For checking a procedure
             Stmt::ProcDecl(retType, procName, params, header, body, lineNum) => {
-                println!("procedure declaration");
+                // println!("procedure declaration");
                 let procAst = Stmt::Program(procName.clone(), header.clone(), body.clone(), lineNum.clone());
                 
                 let mut paramStrings: Vec<String> = Vec::new();
 
-                let mut procChecker: TypeChecker = self.newScope(procAst);
+                let curScope = self.scope.clone();
+
+                let mut procChecker: TypeChecker = self.newScope(procAst, curScope);
                 //Iterates through the parameters, registering them in the Symboltable and copying the names to the list of params
                 if let Stmt::Block(ref instrs, lineNum) = *params.clone() {
                     for instr in instrs {
-                        let good = procChecker.check(instr.clone());
+                        let good = procChecker.checkStmt(instr.clone());
                         if (!good){
                             println!("Error in Procedure parameter definition on line {}:", lineNum.clone());
                             // instr.display(0);
@@ -3625,425 +3740,1214 @@ impl<'a> TypeChecker<'a> {
                 //Checks the procedure to make sure its all good
                 let procGood = procChecker.checkProgram();
 
+                //If the procedure is good, appends to the symboltable and moved on
                 if(!procGood){
                     println!("Error in procedure {} defined on line {}", procName.clone(), lineNum.clone());
                     return false;
                 } else {
-                    //Sets up the things and inserts the procedure into the symboltable
-                    let mut procItemType = HashItemType::newProcItem(body.clone(), paramStrings.clone(), procChecker.symbolTable.clone());
-                    let mut procItem: HashItem = HashItem::newProc(procName.clone(), retType.clone(), procItemType);
-                    self.symbolTable.symTab.insert(procName.clone(), procItem.clone());
-                    return true;
+                    if curScope != 0 {
+                        //Sets up the things and inserts the procedure into the symboltable
+                        let mut procItemType = HashItemType::newProcItem(body.clone(), paramStrings.clone(), procChecker.symbolTable.clone());
+                        let mut procItem: HashItem = HashItem::newProc(procName.clone(), retType.clone(), procItemType);
+                        self.symbolTable.symTab.insert(procName.clone(), procItem.clone());
+                        return true;
+                    } else {
+                        //Sets up the things and inserts the procedure into the symboltable
+                        let mut procItemType = HashItemType::newProcItem(body.clone(), paramStrings.clone(), procChecker.symbolTable.clone());
+                        let mut procItem: HashItem = HashItem::newProc(procName.clone(), retType.clone(), procItemType);
+                        self.globalTable.symTab.insert(procName.clone(), procItem.clone());
+                        return true;
+                    }
                 }
             }
             //For checking a variable assignment
             Stmt::Assign(valueToAssign, newValue, lineNum) => {
-                println!("Assign");
                 // Check if assigning to variable or not
-                if let Expr::VarRef(ref varName) = valueToAssign {
-                    //Checks if the requested variable is in either the local variable scope or the global scope
-                    if self.symbolTable.symTab.contains_key(&varName.clone()) || (self.globalTable.symTab.contains_key(&varName.clone())) {
-                        //Retreives the variable that is being assigned
-                        // let varValue = if let Some(value) = self.symbolTable.symTab.get(&varName.clone()) {
-                        //     value
-                        // } else {
-                        //     self.globalTable.symTab.get(&varName.clone()).unwrap()
-                        // };
-                        // //Gets the type that we are setting equal to, if a procedure, error
-                        // let setVarType: VarType;
-                        // match varValue{
-                        //     HashItem::Proc(procType, hashMap, params, procAst) => {
-                        //         println!("Error on line: {}\nCannot assign a value to a procedure", lineNum.clone());
-                        //         return false
-                        //     }
-                        //     HashItem::Var(varType) => {
-                        //         setVarType = varType.clone();
-                        //     }
-                        // }
-                        // match setVarType{
-                        //     VarType::Bool => {
-                        //         match newValue{
-                        //             Expr::ArrayRef(varName, index) =>{
-                        //                 println!("Warning on line: {}\nAssigning int array index to bool will cast int to bool", lineNum.clone());
-                        //                 return true;
-                        //             }
-                        //             Expr::newOp(op1,operator ,op2 ) => {
-                        //                 println!("Warning on line {}\nSetting bool equal to expression will cast result to bool", lineNum.clone());
-                        //                 return true;
-                        //             }
-                        //             Expr::CondOp(op1, cond, op2) => {
-                        //                 // println!("Error on line {}:")
-                        //                 return true;
-                        //             }
-                        //             Expr::FloatLiteral(floatVal) => {
-                        //                 println!("Warning on line {}:\n Setting bool equal to float value will cause float to be cast to bool", lineNum.clone());
-                        //                 return true;
-                        //             }
-                        //             Expr::IntLiteral(intVal) => {
-                        //                 println!("Warning on line {}:\n Setting bool equal to float value will cause float to be cast to bool", lineNum.clone());
-                        //                 return true;
-                        //             }
-                        //             Expr::StringLiteral(stringVal) => {
-                        //                 println!("Error on line {}\n Cannot assign string to bool", lineNum.clone());
-                        //                 return false;
-                        //             }
-                        //             Expr::ProcRef(procName, params) => {
-                        //                 let goodProc = self.checkExpr(newValue.clone());
-                        //                 if(!goodProc){
-                        //                     println!("Error with procedure call on line {}", lineNum.clone());
-                        //                     return false;
-                        //                 } else {
-                        //                     //Retreives the variable that is being assigned
-                        //                     let procValue = if let Some(value) = self.symbolTable.symTab.get(&varName.clone()) {
-                        //                         value
-                        //                     } else {
-                        //                         self.globalTable.symTab.get(&varName.clone()).unwrap()
-                        //                     };
-                        //                     //Gets the type that we are setting equal to, if a procedure, error
-                        //                     let setProcType: VarType;
-                        //                     match procValue{
-                        //                         HashItem::Proc(procType, hashMap, params, procAst) => {
-                        //                             setProcType = procType.clone();
-                                                    
-                        //                         }
-                        //                         HashItem::Var(varType) => {
-                        //                             setProcType = varType.clone();
-                        //                         }
-                        //                     }
-                        //                     match setProcType{
-                        //                         VarType::Bool => {
-                        //                             return true;
-                        //                         }
-                        //                         VarType::IntArray(arraySize) => {
-                        //                             println!("Error on line: {}\n Cannot assign integer array to boolean variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         VarType::Str => {
-                        //                             println!("Error on line: {}\n Cannot assign string value to bool variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         _ => {
-                        //                             println!("Warning on line {}:\n Assigning float or interger value to boolean variable will cause casting to boolean", lineNum.clone());
-                        //                             return true;
-                        //                         }
-                        //                     }
-                        //                 }
-                        //             }
-                        //             Expr::VarRef(varName) => {
-                        //                 let goodProc = self.checkExpr(newValue.clone());
-                        //                 if(!goodProc){
-                        //                     println!("Error with procedure call on line {}", lineNum.clone());
-                        //                     return false;
-                        //                 } else {
-                        //                     //Retreives the variable that is being assigned
-                        //                     let procValue = if let Some(value) = self.symbolTable.symTab.get(&varName.clone()) {
-                        //                         value
-                        //                     } else {
-                        //                         self.globalTable.symTab.get(&varName.clone()).unwrap()
-                        //                     };
-                        //                     //Gets the type that we are setting equal to, if a procedure, error
-                        //                     let setProcType: VarType;
-                        //                     match procValue{
-                        //                         HashItem::Proc(procType, hashMap, params, procAst) => {
-                        //                             setProcType = procType.clone();
-                                                    
-                        //                         }
-                        //                         HashItem::Var(varType) => {
-                        //                             setProcType = varType.clone();
-                        //                         }
-                        //                     }
-                        //                     match setProcType{
-                        //                         VarType::Bool => {
-                        //                             return true;
-                        //                         }
-                        //                         VarType::IntArray(arrayVec) => {
-                        //                             println!("Error on line: {}\n Cannot assign integer array to boolean variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         VarType::Str => {
-                        //                             println!("Error on line: {}\n Cannot assign string value to bool variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         _ => {
-                        //                             println!("Warning on line {}:\n Assigning float or interger value to boolean variable will cause casting to boolean", lineNum.clone());
-                        //                             return true;
-                        //                         }
-                        //                     }
-                        //                 }
-                        //             }
-                        //         }
-                        //     }
-                        //     VarType::Float => {
-                        //         match newValue{
-                        //             Expr::ArrayRef(varName, index) =>{
-                        //                 return true;
-                        //             }
-                        //             Expr::newOp(op1,operator ,op2 ) => {
-                        //                 return true;
-                        //             }
-                        //             Expr::CondOp(op1, cond, op2) => {
-                        //                 println!("Error on line {}:\n Cannot assign conditional check to float variable", lineNum.clone());
-                        //                 return false;
-                        //             }
-                        //             Expr::FloatLiteral(floatVal) => {
-                        //                 return true;
-                        //             }
-                        //             Expr::IntLiteral(intVal) => {
-                        //                 return true;
-                        //             }
-                        //             Expr::StringLiteral(stringVal) => {
-                        //                 println!("Error on line {}\n Cannot assign string value to float variable", lineNum.clone());
-                        //                 return false;
-                        //             }
-                        //             Expr::ProcRef(procName, params) => {
-                        //                 let goodProc = self.checkExpr(newValue.clone());
-                        //                 if(!goodProc){
-                        //                     println!("Error with procedure call on line {}", lineNum.clone());
-                        //                     return false;
-                        //                 } else {
-                        //                     //Retreives the variable that is being assigned
-                        //                     let procValue = if let Some(value) = self.symbolTable.symTab.get(&varName.clone()) {
-                        //                         value
-                        //                     } else {
-                        //                         self.globalTable.symTab.get(&varName.clone()).unwrap()
-                        //                     };
-                        //                     //Gets the type that we are setting equal to, if a procedure, error
-                        //                     let setProcType: VarType;
-                        //                     match procValue{
-                        //                         HashItem::Proc(procType, hashMap, params, procAst) => {
-                        //                             setProcType = procType.clone();
-                                                    
-                        //                         }
-                        //                         HashItem::Var(varType) => {
-                        //                             setProcType = varType.clone();
-                        //                         }
-                        //                     }
-                        //                     match setProcType{
-                        //                         VarType::Bool(boolVal) => {   
-                        //                             println!("Error on line: {}\n Cannot assign bool value to float variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         VarType::IntArray(arrayVec) => {
-                        //                             println!("Error on line: {}\n Cannot assign integer array value to float variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         VarType::Str(stringVal) => {
-                        //                             println!("Error on line: {}\n Cannot assign string value to float variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         _ => {
-                        //                             return true;
-                        //                         }
-                        //                     }
-                        //                 }
-                        //             }
-                        //             Expr::VarRef(varName) => {
-                        //                 let goodProc = self.checkExpr(newValue.clone());
-                        //                 if(!goodProc){
-                        //                     println!("Error with procedure call on line {}", lineNum.clone());
-                        //                     return false;
-                        //                 } else {
-                        //                     //Retreives the variable that is being assigned
-                        //                     let procValue = if let Some(value) = self.symbolTable.symTab.get(&varName.clone()) {
-                        //                         value
-                        //                     } else {
-                        //                         self.globalTable.symTab.get(&varName.clone()).unwrap()
-                        //                     };
-                        //                     //Gets the type that we are setting equal to, if a procedure, error
-                        //                     let setProcType: VarType;
-                        //                     match procValue{
-                        //                         HashItem::Proc(procType, hashMap, params, procAst) => {
-                        //                             setProcType = procType.clone();
-                                                    
-                        //                         }
-                        //                         HashItem::Var(varType) => {
-                        //                             setProcType = varType.clone();
-                        //                         }
-                        //                     }
-                        //                     match setProcType{
-                        //                         VarType::Bool => {   
-                        //                             println!("Error on line: {}\n Cannot assign bool value to float variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         VarType::IntArray(arraySize) => {
-                        //                             println!("Error on line: {}\n Cannot assign integer array value to float variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         VarType::Str => {
-                        //                             println!("Error on line: {}\n Cannot assign string value to float variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         _ => {
-                        //                             return true;
-                        //                         }
-                        //                     }
-                        //                 }
-                        //             }
-                        //         }
-                        //     }
-                        //     VarType::Str => {
-                        //         match newValue{
-                        //             Expr::ArrayRef(varName, index) =>{
-                        //                 println!("Error on line: {}\nCannot assign integer array value to to to string variable", lineNum.clone());
-                        //                 return false;
-                        //             }
-                        //             Expr::newOp(op1,operator ,op2 ) => {
-                        //                 println!("Warning on line {}\nSetting bool equal to expression will cast result to bool", lineNum.clone());
-                        //                 return true;
-                        //             }
-                        //             Expr::CondOp(op1, cond, op2) => {
-                        //                 // println!("Error on line {}:")
-                        //                 return true;
-                        //             }
-                        //             Expr::FloatLiteral(floatVal) => {
-                        //                 println!("Warning on line {}:\n Setting bool equal to float value will cause float to be cast to bool", lineNum.clone());
-                        //                 return true;
-                        //             }
-                        //             Expr::IntLiteral(intVal) => {
-                        //                 println!("Warning on line {}:\n Setting bool equal to float value will cause float to be cast to bool", lineNum.clone());
-                        //                 return true;
-                        //             }
-                        //             Expr::StringLiteral(stringVal) => {
-                        //                 println!("Error on line {}\n Cannot assign string to bool", lineNum.clone());
-                        //                 return false;
-                        //             }
-                        //             Expr::ProcRef(procName, params) => {
-                        //                 let goodProc = self.checkExpr(newValue.clone());
-                        //                 if(!goodProc){
-                        //                     println!("Error with procedure call on line {}", lineNum.clone());
-                        //                     return false;
-                        //                 } else {
-                        //                     //Retreives the variable that is being assigned
-                        //                     let procValue = if let Some(value) = self.symbolTable.symTab.get(&varName.clone()) {
-                        //                         value
-                        //                     } else {
-                        //                         self.globalTable.symTab.get(&varName.clone()).unwrap()
-                        //                     };
-                        //                     //Gets the type that we are setting equal to, if a procedure, error
-                        //                     let setProcType: VarType;
-                        //                     match procValue{
-                        //                         HashItem::Proc(procType, hashMap, params, procAst) => {
-                        //                             setProcType = procType.clone();
-                                                    
-                        //                         }
-                        //                         HashItem::Var(varType) => {
-                        //                             setProcType = varType.clone();
-                        //                         }
-                        //                     }
-                        //                     match setProcType{
-                        //                         VarType::Bool => {
-                        //                             return true;
-                        //                         }
-                        //                         VarType::IntArray(arraaySize) => {
-                        //                             println!("Error on line: {}\n Cannot assign integer array to boolean variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         VarType::Str => {
-                        //                             println!("Error on line: {}\n Cannot assign string value to bool variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         _ => {
-                        //                             println!("Warning on line {}:\n Assigning float or interger value to boolean variable will cause casting to boolean", lineNum.clone());
-                        //                             return true;
-                        //                         }
-                        //                     }
-                        //                 }
-                        //             }
-                        //             Expr::VarRef(varName) => {
-                        //                 let goodProc = self.checkExpr(newValue.clone());
-                        //                 if(!goodProc){
-                        //                     println!("Error with procedure call on line {}", lineNum.clone());
-                        //                     return false;
-                        //                 } else {
-                        //                     //Retreives the variable that is being assigned
-                        //                     let procValue = if let Some(value) = self.symbolTable.symTab.get(&varName.clone()) {
-                        //                         value
-                        //                     } else {
-                        //                         self.globalTable.symTab.get(&varName.clone()).unwrap()
-                        //                     };
-                        //                     //Gets the type that we are setting equal to, if a procedure, error
-                        //                     let setProcType: VarType;
-                        //                     match procValue{
-                        //                         HashItem::Proc(procType, hashMap, params, procAst) => {
-                        //                             setProcType = procType.clone();
-                                                    
-                        //                         }
-                        //                         HashItem::Var(varType) => {
-                        //                             setProcType = varType.clone();
-                        //                         }
-                        //                     }
-                        //                     match setProcType{
-                        //                         VarType::Bool => {
-                        //                             return true;
-                        //                         }
-                        //                         VarType::IntArray(arrayVec) => {
-                        //                             println!("Error on line: {}\n Cannot assign integer array to boolean variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         VarType::Str => {
-                        //                             println!("Error on line: {}\n Cannot assign string value to bool variable", lineNum.clone());
-                        //                             return false;
-                        //                         }
-                        //                         _ => {
-                        //                             println!("Warning on line {}:\n Assigning float or interger value to boolean variable will cause casting to boolean", lineNum.clone());
-                        //                             return true;
-                        //                         }
-                        //                     }
-                        //                 }
-                        //             }
-                        //         }
-                        //     }
-                        // }
-                        
-                        return true;
-
-                    } else {
-                        println!("Reference to undeclared variable {} in line {}", varName.clone(), lineNum.clone());
-                        return false;
-                    }
-                } else if let Expr::ArrayRef(varName, indexBox) = valueToAssign { 
-                    if (self.symbolTable.symTab.contains_key(&varName.clone())) || (self.globalTable.symTab.contains_key(&varName.clone())) {
-                        let value = VarType::IntArray;
-                        let varValue = self.symbolTable.symTab.get(&varName).clone();
-                        if let Some(keyValue) = varValue {
-                            println!("Good array reference");
-                            println!("Need to check expression");
-                            return true;
-                        } else {
-                            println!("Variable {} is not an array. Line {}", varName, lineNum.clone());
+                if let Expr::VarRef(ref targName) = valueToAssign {
+                    //Check if variable assignment is in the local table
+                    let mut targValue: HashItem; 
+                    //Looks for the value in the local then global table, retrieves it if so
+                    if !(self.symbolTable.checkItem(targName)){
+                        if !(self.globalTable.checkItem(targName)){
+                            println!("Attempting to assign value to undeclared variable: {} on line: {}", targName.clone(), lineNum.clone());
                             return false;
+                        } else {
+                            let gotValue = self.globalTable.get(targName);
+                            match gotValue{
+                                Some(val) => {
+                                    targValue = val.clone();
+                                }
+                                None => {
+                                    println!("Error with value {} on line: {}", targName.clone(), lineNum.clone());
+                                    return false;
+                                }
+                            }
                         }
                     } else {
-                        println!("Reference to undeclared variable {} in line {}", varName.clone(), lineNum.clone());
+                        let gotValue = self.symbolTable.get(targName);
+                        match gotValue{
+                            Some(val) => {
+                                targValue = val.clone();
+                            }
+                            None => {
+                                println!("Error with value {} on line: {}", targName.clone(), lineNum.clone());
+                                return false;
+                            }
+                        }
+                    }
+                    
+                    //Checks if value being assigned to is a variable
+                    if targValue.hashType != HashItemType::Variable {
+                        println!("On line: {}, cannot assign value to procedure", lineNum.clone());
                         return false;
                     }
                     
+                    //Checks to ensure that new value matches target value
+                    let targType = targValue.getType();
+                    match targType{
+                        VarType::Int => {
+                            println!("Target: Int");
+                            match newValue.clone(){
+                                //Literals
+                                Expr::IntLiteral(val) => {
+                                    println!("Assigning: Int");
+                                    return true;
+                                }
+                                Expr::FloatLiteral(val) => {
+                                    println!("Assigning: float");
+                                    return true;
+                                }
+                                Expr::ArrayRef(name, index) => {
+                                    println!("Assinging: Int Array ref");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if checked {
+                                        println!("Array refernce good");
+                                        return true;
+                                    } else {
+                                        println!("Error with array reference on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::BoolLiteral(val) => {
+                                    println!("Assigning: Bool");
+                                    return true;
+                                }
+                                Expr::StringLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot assign string to variable of type int", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::IntArrayLiteral(size, array) => {
+                                    println!("Cannot assign array to variable of type {}", targType.clone());
+                                    return false;
+                                }
+
+                                //Operations
+                                Expr::ArthOp(op1, op, op2) => {
+                                    println!("Assigning ArthOp");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("ArthOp good");
+                                        return true;
+                                    } else {
+                                        println!("Error in arithmetic operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::LogOp(op1, op, op2) => {
+                                    println!("Assigning LogOp");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("LogOp good");
+                                        return true;
+                                    } else {
+                                        println!("Error in logical operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::RelOp(op1, op, op2) => {
+                                    println!("Assigning RelOp");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("RelOp good");
+                                        return true;
+                                    } else {
+                                        println!("Error in relational operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                
+                                //Calls/references
+                                Expr::ProcRef(procName, params) => {
+                                    println!("Assigning: procedure {}", procName.clone());
+                                    let mut procType: VarType;
+                                    //Checks if procedure is defined
+                                    let checkLocProc = self.symbolTable.getType(&procName.clone());
+                                    match checkLocProc{
+                                        Some(proc) => {
+                                            println!("procedure exists locally");
+                                            procType = proc;
+                                        }
+                                        None => {
+                                            println!("Procedure does not exist locally, checking global");
+                                            let checkGlobProc = self.symbolTable.getType(&procName.clone());
+                                            match checkGlobProc{
+                                                Some(proc) => {
+                                                    println!("procedure exists globally");
+                                                    procType = proc
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Procedure {} is not defined", lineNum.clone(), procName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks procedure type compatability with int
+                                    match procType{
+                                        VarType::Bool =>{
+                                            println!("Procedure type bool");
+                                            return true;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Procedure type int");
+                                            return true;
+                                        }
+                                        VarType::Float =>{
+                                            println!("Procedure type float");
+                                            return true;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), procType.clone(), targName.clone(), targType.clone());
+                                            return false;
+                                        }
+                                    }
+                                }   
+                                Expr::VarRef(assignName) => {
+                                    println!("Assigning: variable {}", assignName.clone());
+                                    let mut assignType: VarType;
+                                    //Checks if variable is defined
+                                    let checkLocVar = self.symbolTable.getType(&assignName.clone());
+                                    match checkLocVar{
+                                        Some(var) => {
+                                            println!("variable exists locally");
+                                            assignType = var;
+                                        }
+                                        None => {
+                                            println!("Variable does not exist locally, checking global");
+                                            let checkGlobVar = self.symbolTable.getType(&assignName.clone());
+                                            match checkGlobVar{
+                                                Some(var) => {
+                                                    println!("Variable exists globally");
+                                                    assignType = var
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Variable {} is not defined", lineNum.clone(), assignName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks variable type compatability with int
+                                    match assignType{
+                                        VarType::Bool =>{
+                                            println!("Variable type bool");
+                                            return true;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Variable type int");
+                                            return true;
+                                        }
+                                        VarType::Float =>{
+                                            println!("Variable type float");
+                                            return true;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), assignType.clone(), targName.clone(), targType.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        VarType::Bool => {
+                            println!("Target: bool");
+                            match newValue.clone(){
+                                //Literals
+                                Expr::IntLiteral(val) => {
+                                    println!("Assigning: Int");
+                                    return true;
+                                }
+                                Expr::FloatLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot assign float to variable of type bool", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::ArrayRef(name, index) => {
+                                    println!("Assinging: Int Array ref");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if checked {
+                                        println!("Array refernce good");
+                                        return true;
+                                    } else {
+                                        println!("Error with array reference on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }Expr::BoolLiteral(val) => {
+                                    println!("Assigning: Bool");
+                                    return true;
+                                }
+                                Expr::StringLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot assign string to variable of type bool", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::IntArrayLiteral(size, array) => {
+                                    println!("Cannot assign array to variable of type {}", targType.clone());
+                                    return false;
+                                }
+                                
+                                //Operations
+                                Expr::ArthOp(op1, op, op2) => {
+                                    println!("Assigning ArthOp");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("ArthOp good");
+                                        return true;
+                                    } else {
+                                        println!("Error in arithmetic operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::LogOp(op1, op, op2) => {
+                                    println!("Assigning LogOp");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("LogOp good");
+                                        return true;
+                                    } else {
+                                        println!("Error in logical operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::RelOp(op1, op, op2) => {
+                                    println!("Assigning RelOp");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("RelOp good");
+                                        return true;
+                                    } else {
+                                        println!("Error in relational operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                
+                                //Calls/references
+                                Expr::ProcRef(procName, params) => {
+                                    println!("Assigning: procedure {}", procName.clone());
+                                    let mut procType: VarType;
+                                    //Checks if procedure is defined
+                                    let checkLocProc = self.symbolTable.getType(&procName.clone());
+                                    match checkLocProc{
+                                        Some(proc) => {
+                                            println!("procedure exists locally");
+                                            procType = proc;
+                                        }
+                                        None => {
+                                            println!("Procedure does not exist locally, checking global");
+                                            let checkGlobProc = self.symbolTable.getType(&procName.clone());
+                                            match checkGlobProc{
+                                                Some(proc) => {
+                                                    println!("procedure exists globally");
+                                                    procType = proc
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Procedure {} is not defined", lineNum.clone(), procName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks procedure type compatability with int
+                                    match procType{
+                                        VarType::Bool =>{
+                                            println!("Procedure type bool");
+                                            return true;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Procedure type int");
+                                            return true;
+                                        }
+                                        VarType::Float =>{
+                                            println!("Procedure type float");
+                                            return true;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), procType.clone(), targName.clone(), targType.clone());
+                                            return false;
+                                        }
+                                    }
+                                }   
+                                Expr::VarRef(assignName) => {
+                                    println!("Assigning: variable {}", assignName.clone());
+                                    let mut assignType: VarType;
+                                    //Checks if variable is defined
+                                    let checkLocVar = self.symbolTable.getType(&assignName.clone());
+                                    match checkLocVar{
+                                        Some(var) => {
+                                            println!("variable exists locally");
+                                            assignType = var;
+                                        }
+                                        None => {
+                                            println!("Variable does not exist locally, checking global");
+                                            let checkGlobVar = self.symbolTable.getType(&assignName.clone());
+                                            match checkGlobVar{
+                                                Some(var) => {
+                                                    println!("Variable exists globally");
+                                                    assignType = var
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Variable {} is not defined", lineNum.clone(), assignName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks variable type compatability with int
+                                    match assignType{
+                                        VarType::Bool =>{
+                                            println!("Variable type bool");
+                                            return true;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Variable type int");
+                                            return true;
+                                        }
+                                        VarType::Float =>{
+                                            println!("Variable type float");
+                                            return true;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), assignType.clone(), targName.clone(), targType.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        VarType::Float => {
+                            match newValue.clone(){
+                                //Literals
+                                Expr::IntLiteral(val) => {
+                                    println!("Assigning: Int");
+                                    return true;
+                                }
+                                Expr::FloatLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot assign float to variable of type bool", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::ArrayRef(name, index) => {
+                                    println!("Assinging: Int Array ref");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if checked {
+                                        println!("Array refernce good");
+                                        return true;
+                                    } else {
+                                        println!("Error with array reference on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::BoolLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot assign bool to variable of type float", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::StringLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot assign string to variable of type float", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::IntArrayLiteral(size, array) => {
+                                    println!("Cannot assign array to variable of type {}", targType.clone());
+                                    return false;
+                                }
+
+                                //Operations
+                                Expr::ArthOp(op1, op, op2) => {
+                                    println!("Assigning ArthOp");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("ArthOp good");
+                                        return true;
+                                    } else {
+                                        println!("Error in arithmetic operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }          
+                                Expr::LogOp(op1, op, op2) => {
+                                    println!("Error on line {}:\n Cannot assign output of logical operation to variable of type float", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::RelOp(op1, op, op2) => {
+                                    println!("Error on line {}:\n Cannot assign output of relational operation to variable of type float", lineNum.clone());
+                                    return false;
+                                }
+                                
+                                //Calls/references
+                                Expr::ProcRef(procName, params) => {
+                                    println!("Assigning: procedure {}", procName.clone());
+                                    let mut procType: VarType;
+                                    //Checks if procedure is defined
+                                    let checkLocProc = self.symbolTable.getType(&procName.clone());
+                                    match checkLocProc{
+                                        Some(proc) => {
+                                            println!("procedure exists locally");
+                                            procType = proc;
+                                        }
+                                        None => {
+                                            println!("Procedure does not exist locally, checking global");
+                                            let checkGlobProc = self.symbolTable.getType(&procName.clone());
+                                            match checkGlobProc{
+                                                Some(proc) => {
+                                                    println!("procedure exists globally");
+                                                    procType = proc
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Procedure {} is not defined", lineNum.clone(), procName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks procedure type compatability with int
+                                    match procType{
+                                        VarType::Bool =>{
+                                            println!("Error on line {}:\n Cannot assign output of procedure of type bool to variable of type float", lineNum.clone());
+                                            return false;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Procedure type int");
+                                            return true;
+                                        }
+                                        VarType::Float =>{
+                                            println!("Procedure type float");
+                                            return true;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), procType.clone(), targName.clone(), targType.clone());
+                                            return false;
+                                        }
+                                    }
+                                }   
+                                Expr::VarRef(assignName) => {
+                                    println!("Assigning: variable {}", assignName.clone());
+                                    let mut assignType: VarType;
+                                    //Checks if variable is defined
+                                    let checkLocVar = self.symbolTable.getType(&assignName.clone());
+                                    match checkLocVar{
+                                        Some(var) => {
+                                            println!("variable exists locally");
+                                            assignType = var;
+                                        }
+                                        None => {
+                                            println!("Variable does not exist locally, checking global");
+                                            let checkGlobVar = self.symbolTable.getType(&assignName.clone());
+                                            match checkGlobVar{
+                                                Some(var) => {
+                                                    println!("Variable exists globally");
+                                                    assignType = var
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Variable {} is not defined", lineNum.clone(), assignName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks variable type compatability with int
+                                    match assignType{
+                                        VarType::Bool =>{
+                                            println!("Error on line {}:\n Cannot assign value of variable of type bool to variable of type float", lineNum.clone());
+                                            return false;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Variable type int");
+                                            return true;
+                                        }
+                                        VarType::Float =>{
+                                            println!("Variable type float");
+                                            return true;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), assignType.clone(), targName.clone(), targType.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        VarType::Str => {
+                            match newValue.clone(){
+                                //Literals
+                                Expr::IntLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot assign int to variable of type string", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::FloatLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot assign float to variable of type string", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::ArrayRef(name, index) => {
+                                    println!("Error on line {}:\n Cannot assign int array value to variable of type string", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::BoolLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot assign bool to variable of type string", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::StringLiteral(val) => {
+                                    println!("Assigning string");
+                                    return true;
+                                }
+                                Expr::IntArrayLiteral(size, array) => {
+                                    println!("Cannot assign array to variable of type {}", targType.clone());
+                                    return false;
+                                }
+
+                                //Operations
+                                Expr::ArthOp(op1, op, op2) => {
+                                    println!("Error on line {}:\n Cannot assign output of arithmetic operation to variable of type string", lineNum.clone());
+                                    return false;
+                                }          
+                                Expr::LogOp(op1, op, op2) => {
+                                    println!("Error on line {}:\n Cannot assign output of logical operation to variable of type string", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::RelOp(op1, op, op2) => {
+                                    println!("Error on line {}:\n Cannot assign output of relational operation to variable of type string", lineNum.clone());
+                                    return false;
+                                }
+                                
+                                //Calls/references
+                                Expr::ProcRef(procName, params) => {
+                                    println!("Assigning: procedure {}", procName.clone());
+                                    let mut procType: VarType;
+                                    //Checks if procedure is defined
+                                    let checkLocProc = self.symbolTable.getType(&procName.clone());
+                                    match checkLocProc{
+                                        Some(proc) => {
+                                            println!("procedure exists locally");
+                                            procType = proc;
+                                        }
+                                        None => {
+                                            println!("Procedure does not exist locally, checking global");
+                                            let checkGlobProc = self.symbolTable.getType(&procName.clone());
+                                            match checkGlobProc{
+                                                Some(proc) => {
+                                                    println!("procedure exists globally");
+                                                    procType = proc
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Procedure {} is not defined", lineNum.clone(), procName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks procedure type compatability with int
+                                    match procType{
+                                        VarType::Bool =>{
+                                            println!("Error on line {}:\n Cannot assign output of procedure of type bool to variable of type float", lineNum.clone());
+                                            return false;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Error on line {}:\n Cannot assign output of procedure of type integer to variable of type float", lineNum.clone());
+                                            return false;
+                                        }
+                                        VarType::Float =>{
+                                            println!("Error on line {}:\n Cannot assign output of procedure of float bool to variable of type float", lineNum.clone());
+                                            return false;
+                                        }
+                                        VarType::Str => {
+                                            println!("Assigning string procedure");
+                                            return true;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), procType.clone(), targName.clone(), targType.clone());
+                                            return false;
+                                        }
+                                    }
+                                }   
+                                Expr::VarRef(assignName) => {
+                                    println!("Assigning: variable {}", assignName.clone());
+                                    let mut assignType: VarType;
+                                    //Checks if variable is defined
+                                    let checkLocVar = self.symbolTable.getType(&assignName.clone());
+                                    match checkLocVar{
+                                        Some(var) => {
+                                            println!("variable exists locally");
+                                            assignType = var;
+                                        }
+                                        None => {
+                                            println!("Variable does not exist locally, checking global");
+                                            let checkGlobVar = self.symbolTable.getType(&assignName.clone());
+                                            match checkGlobVar{
+                                                Some(var) => {
+                                                    println!("Variable exists globally");
+                                                    assignType = var
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Variable {} is not defined", lineNum.clone(), assignName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks variable type compatability with int
+                                    match assignType{
+                                        VarType::Bool =>{
+                                            println!("Error on line {}:\n Cannot assign value of variable of type bool to variable of type float", lineNum.clone());
+                                            return false;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Error on line {}:\n Cannot assign value of variable of type integer to variable of type float", lineNum.clone());
+                                            return false;
+                                        }
+                                        VarType::Float =>{
+                                            println!("Error on line {}:\n Cannot assign value of variable of type float to variable of type float", lineNum.clone());
+                                            return false;
+                                        }
+                                        VarType::Str => {
+                                            println!("Assigning string variable");
+                                            return true;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), assignType.clone(), targName.clone(), targType.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        VarType::IntArray(targSize) => {
+                            println!("Target: Integer array");
+                            match newValue.clone(){
+                                Expr::IntArrayLiteral(newSize, array) => {
+                                    println!("Assigning: Integer array");
+                                    if(targSize == newSize) {
+                                        println!("Arrays are the same size");
+                                        return true;
+                                    } else {
+                                        println!("Error on line {}:\n When copying integers, sizes must be equivalent", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                _ => {
+                                    println!("Error on line {}:\n Cannot assign {} to integer array", lineNum.clone(), targType.clone());
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+
+                } 
+                
+                //For index value references
+                else if let Expr::ArrayRef(ref targName, targIndexExpr) = valueToAssign {
+                    //Check if variable assignment is in the local table
+                    let mut targValue: HashItem; 
+                    //Looks for the value in the local then global table, retrieves it if so
+                    if !(self.symbolTable.checkItem(targName)){
+                        if !(self.globalTable.checkItem(targName)){
+                            println!("Attempting to assign value to undeclared variable: {} on line: {}", targName.clone(), lineNum.clone());
+                            return false;
+                        } else {
+                            let gotValue = self.globalTable.get(targName);
+                            match gotValue{
+                                Some(val) => {
+                                    targValue = val.clone();
+                                }
+                                None => {
+                                    println!("Error with value {} on line: {}", targName.clone(), lineNum.clone());
+                                    return false;
+                                }
+                            }
+                        }
+                    } else {
+                        let gotValue = self.symbolTable.get(targName);
+                        match gotValue{
+                            Some(val) => {
+                                targValue = val.clone();
+                            }
+                            None => {
+                                println!("Error with value {} on line: {}", targName.clone(), lineNum.clone());
+                                return false;
+                            }
+                        }
+                    }
+                    
+                    //Checks if value being assigned to is a variable
+                    if targValue.hashType != HashItemType::Variable {
+                        println!("On line: {}, cannot assign value to procedure", lineNum.clone());
+                        return false;
+                    }
+                    
+                    //Checks to ensure that new value matches target value
+                    let targType = targValue.getType();
+                    match targType{
+                        //The only correct one
+                        VarType::IntArray(targSize) => {
+                            println!("Target: Integer array variable");
+                            
+                            //Checks if the expression making up the index is valid
+                            let checked = self.checkExpr(*targIndexExpr.clone());
+                            if (checked){
+                                println!("index expression is valid");
+                            } else {
+                                println!("Error with index expression on line {}", lineNum.clone());
+                                return false;
+                            }
+                            
+                            //Reacts based on the type of expression the index expression is
+                            match *targIndexExpr{
+                                //Literals
+                                Expr::IntLiteral(val) => {
+                                    if (val > targSize.into()){
+                                        println!("Error on line {}:\n Index {} is out of bounds", lineNum.clone(), val.clone())
+                                    } else {
+                                        println!("Index int");
+                                    }
+                                    
+                                }
+                                Expr::FloatLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot use float as index value", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::ArrayRef(name, index) => {
+                                    println!("Index from int array");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if checked {
+                                        println!("Array refernce good");
+                                        return true;
+                                    } else {
+                                        println!("Error with array reference on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::BoolLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot use bool as index value", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::StringLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot use string as index value", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::IntArrayLiteral(size, array) => {
+                                    println!("Error on line {}:\n Cannot use array as index value", lineNum.clone());
+                                    return false;
+                                }
+
+                                //Operations
+                                Expr::ArthOp(op1, op, op2) => {
+                                    println!("ArthOp index");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("ArthOp good");
+                                    } else {
+                                        println!("Error in arithmetic operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::LogOp(op1, op, op2) => {
+                                    println!("Error on line {}:\n Cannot use logical operation as index value", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::RelOp(op1, op, op2) => {
+                                    println!("Error on line {}:\n Cannot use relational operation as index value", lineNum.clone());
+                                    return false;
+                                }
+                                
+                                //Calls/references
+                                Expr::ProcRef(procName, params) => {
+                                    println!("Indexing with procedure {}", procName.clone());
+                                    let mut procType: VarType;
+                                    //Checks if procedure is defined
+                                    let checkLocProc = self.symbolTable.getType(&procName.clone());
+                                    match checkLocProc{
+                                        Some(proc) => {
+                                            println!("procedure exists locally");
+                                            procType = proc;
+                                        }
+                                        None => {
+                                            println!("Procedure does not exist locally, checking global");
+                                            let checkGlobProc = self.symbolTable.getType(&procName.clone());
+                                            match checkGlobProc{
+                                                Some(proc) => {
+                                                    println!("procedure exists globally");
+                                                    procType = proc
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Procedure {} is not defined", lineNum.clone(), procName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks procedure type compatability with int
+                                    match procType{
+                                        VarType::Bool =>{
+                                            println!("Error on line {}:\n Cannot use procedure of type bool as index value", lineNum.clone());
+                                            return false;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Procedure type int");
+                                            
+                                        }
+                                        VarType::Float =>{
+                                            println!("Error on line {}:\n Cannot use procedure of type float as index value", lineNum.clone());
+                                            return false;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot use procedure {} to index integer array", lineNum.clone(), procName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }   
+                                Expr::VarRef(indexVarName) => {
+                                    println!("indexing with variable {}", indexVarName.clone());
+                                    let mut assignType: VarType;
+                                    //Checks if variable is defined
+                                    let checkLocVar = self.symbolTable.getType(&indexVarName.clone());
+                                    match checkLocVar{
+                                        Some(var) => {
+                                            println!("variable exists locally");
+                                            assignType = var;
+                                        }
+                                        None => {
+                                            println!("Variable does not exist locally, checking global");
+                                            let checkGlobVar = self.symbolTable.getType(&indexVarName.clone());
+                                            match checkGlobVar{
+                                                Some(var) => {
+                                                    println!("Variable exists globally");
+                                                    assignType = var
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Variable {} is not defined", lineNum.clone(), indexVarName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks variable type compatability with int
+                                    match assignType{
+                                        VarType::Bool =>{
+                                            println!("Error on line {}:\n Cannot use variable of type bool as index value", lineNum.clone());
+                                            return false;
+                                        }
+                                        VarType::Int =>{
+                                            println!("variable type int");
+                                            
+                                        }
+                                        VarType::Float =>{
+                                            println!("Error on line {}:\n Cannot use variable of type float as index value", lineNum.clone());
+                                            return false;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot use variable {} to index integer array", lineNum.clone(), indexVarName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+
+                            //Now that we know the index is good, need to check the target assignment
+                            match newValue.clone(){
+                                //Literals
+                                Expr::IntLiteral(val) => {
+                                    println!("Assigning: Int");
+                                    return true;
+                                }
+                                Expr::FloatLiteral(val) => {
+                                    println!("Assigning: float");
+                                    return true;
+                                }
+                                Expr::ArrayRef(name, index) => {
+                                    println!("Assinging: Int Array ref");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if checked {
+                                        println!("Array refernce good");
+                                        return true;
+                                    } else {
+                                        println!("Error with array reference on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::BoolLiteral(val) => {
+                                    println!("Assigning: Bool");
+                                    return true;
+                                }
+                                Expr::StringLiteral(val) => {
+                                    println!("Error on line {}:\n Cannot assign string to variable of type int", lineNum.clone());
+                                    return false;
+                                }
+                                Expr::IntArrayLiteral(size, array) => {
+                                    println!("Cannot assign array to variable of type {}", targType.clone());
+                                    return false;
+                                }
+
+                                //Operations
+                                Expr::ArthOp(op1, op, op2) => {
+                                    println!("Assigning ArthOp");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("ArthOp good");
+                                        return true;
+                                    } else {
+                                        println!("Error in arithmetic operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::LogOp(op1, op, op2) => {
+                                    println!("Assigning LogOp");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("LogOp good");
+                                        return true;
+                                    } else {
+                                        println!("Error in logical operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                Expr::RelOp(op1, op, op2) => {
+                                    println!("Assigning RelOp");
+                                    println!("Checking expression");
+                                    let checked = self.checkExpr(newValue.clone());
+                                    if(checked){
+                                        println!("RelOp good");
+                                        return true;
+                                    } else {
+                                        println!("Error in relational operation on line {}", lineNum.clone());
+                                        return false;
+                                    }
+                                }
+                                
+                                //Calls/references
+                                Expr::ProcRef(procName, params) => {
+                                    println!("Assigning: procedure {}", procName.clone());
+                                    let mut procType: VarType;
+                                    //Checks if procedure is defined
+                                    let checkLocProc = self.symbolTable.getType(&procName.clone());
+                                    match checkLocProc{
+                                        Some(proc) => {
+                                            println!("procedure exists locally");
+                                            procType = proc;
+                                        }
+                                        None => {
+                                            println!("Procedure does not exist locally, checking global");
+                                            let checkGlobProc = self.symbolTable.getType(&procName.clone());
+                                            match checkGlobProc{
+                                                Some(proc) => {
+                                                    println!("procedure exists globally");
+                                                    procType = proc
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Procedure {} is not defined", lineNum.clone(), procName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks procedure type compatability with int
+                                    match procType{
+                                        VarType::Bool =>{
+                                            println!("Procedure type bool");
+                                            return true;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Procedure type int");
+                                            return true;
+                                        }
+                                        VarType::Float =>{
+                                            println!("Procedure type float");
+                                            return true;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), procType.clone(), targName.clone(), targType.clone());
+                                            return false;
+                                        }
+                                    }
+                                }   
+                                Expr::VarRef(assignName) => {
+                                    println!("Assigning: variable {}", assignName.clone());
+                                    let mut assignType: VarType;
+                                    //Checks if variable is defined
+                                    let checkLocVar = self.symbolTable.getType(&assignName.clone());
+                                    match checkLocVar{
+                                        Some(var) => {
+                                            println!("variable exists locally");
+                                            assignType = var;
+                                        }
+                                        None => {
+                                            println!("Variable does not exist locally, checking global");
+                                            let checkGlobVar = self.symbolTable.getType(&assignName.clone());
+                                            match checkGlobVar{
+                                                Some(var) => {
+                                                    println!("Variable exists globally");
+                                                    assignType = var
+                                                }
+                                                None => {
+                                                    println!("Error on line {}:\n Variable {} is not defined", lineNum.clone(), assignName.clone());
+                                                    return false;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                
+                                    //Checks variable type compatability with int
+                                    match assignType{
+                                        VarType::Bool =>{
+                                            println!("Variable type bool");
+                                            return true;
+                                        }
+                                        VarType::Int =>{
+                                            println!("Variable type int");
+                                            return true;
+                                        }
+                                        VarType::Float =>{
+                                            println!("Variable type float");
+                                            return true;
+                                        }
+                                        _ => {
+                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), assignType.clone(), targName.clone(), targType.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }                        
+                        }
+                        _ => {
+                            println!("Error on line {}:\n Variable {} is not an array", lineNum.clone(), targName.clone());
+                            return false;
+                        }
+                    }
+
                 } else {
                     println!("On line {}: cannot assign to non-variable", lineNum.clone());
+                    return false;
                 }
 
 
-                return true;
             }
             //For Stmts that are just Exprs
             Stmt::Expr(expr, lineNum) => {
                 println!("Expression statement");
                 match (expr){
-                    Expr::BinOp(op1, operator, op2) => {
-                        println!("Binary operator");
-                        return true;
-                    }
                     _ => {
-                        println!("Unknown expression statement");
-                        return false;
+                        println!("Checking expression statement");
+                        let checked = self.checkExpr(expr.clone());
+                        if checked {
+                            println!("Expression statement good");
+                            return true;
+                        } else {
+                            println!("Error with expression statement on line {}", lineNum.clone());
+                            return false;
+                        }
                     }
                 }
             }
+            //For checking if statements
             Stmt::If(condition, body, elseBody, lineNum) => {
+                println!("If statement");
                 //Checks the condition
-                match condition {
-                    Expr::CondOp(ref op1, ref operator, ref op2) => {
-                        println!("Checking condition");
+                match condition.clone() {
+                    Expr::IntArrayLiteral(size, array) => {
+                        println!("Error with if condition on line {}:\n Cannot use array as condition", lineNum.clone());
+                        return false;
+                    }
+                    Expr::FloatLiteral(val) => {
+                        println!("Error with if condition on line {}:\n Cannot use float as condition", lineNum.clone());
+                        return false;
+                    }
+                    Expr::StringLiteral(val) => {
+                        println!("Error with if condition on line {}:\n Cannot use string as condition", lineNum.clone());
+                        return false;
+                    }
+                    
+                    
+                    Expr::ProcRef(procName, params) => {
+                        println!("If condition procedure {}", procName.clone());
+                        let mut procType: VarType;
+                        //Checks if procedure is defined
+                        let checkLocProc = self.symbolTable.getType(&procName.clone());
+                        match checkLocProc{
+                            Some(proc) => {
+                                println!("procedure exists locally");
+                                procType = proc;
+                            }
+                            None => {
+                                println!("Procedure does not exist locally, checking global");
+                                let checkGlobProc = self.symbolTable.getType(&procName.clone());
+                                match checkGlobProc{
+                                    Some(proc) => {
+                                        println!("procedure exists globally");
+                                        procType = proc
+                                    }
+                                    None => {
+                                        println!("Error on line {}:\n Procedure {} is not defined", lineNum.clone(), procName.clone());
+                                        return false;
+                                        
+                                    }
+                                }
+                            }
+                        }
+                    
+                        //Checks procedure type compatability with int
+                        match procType{
+                            VarType::Bool =>{
+                                println!("Procedure type bool");
+                            }
+                            VarType::Int =>{
+                                println!("Procedure type int");
+                            }
+                            VarType::Float =>{
+                                println!("Error with if condition on line {}:\n Cannot use float procedure as condition", lineNum.clone());
+                        return false;
+                            }
+                            _ => {
+                                println!("Error on line {}:\n Cannot use procedure of type {} as if condition", lineNum.clone(), procType.clone());
+                                return false;
+                            }
+                        }
+
                         //Checks if the condition is good
                         let goodCond = self.checkExpr(condition.clone());
                         //If the condition is bad, fails here
@@ -4052,8 +4956,9 @@ impl<'a> TypeChecker<'a> {
                             return false;
                         //If the condition is good, checks the rest of the if statement
                         } else {
-                            //CHecks the if body
-                            let goodIfBody = self.check(*body);
+                            println!("If RelOp expression good");
+                            //Checks the if body
+                            let goodIfBody = self.checkStmt(*body);
                             //If the body if good
                             if(goodIfBody){
                                 println!("If body good");
@@ -4061,7 +4966,7 @@ impl<'a> TypeChecker<'a> {
                                 match elseBody{
                                     //Checks the else
                                     Some(elseStmt) => {
-                                        let goodElse = self.check(*elseStmt.clone());
+                                        let goodElse = self.checkStmt(*elseStmt.clone());
                                         if(!goodElse){
                                             println!("Error with else in if statement on line {}", lineNum.clone());
                                             return false;
@@ -4078,32 +4983,301 @@ impl<'a> TypeChecker<'a> {
 
                                 }
                             } else {
-                                println!("Error with if statement on line {}", lineNum.clone());
+                                println!("Error with body of if statement on line: {}", lineNum.clone());
                                 return false;
                             }
-                            
+                        }
+
+
+                    }   
+                    
+                    Expr::VarRef(varCondName) => {
+                        println!("Assigning: variable {}", varCondName.clone());
+                        let mut ifCondType: VarType;
+                        //Checks if variable is defined
+                        let checkLocVar = self.symbolTable.getType(&varCondName.clone());
+                        match checkLocVar{
+                            Some(var) => {
+                                println!("variable exists locally");
+                                ifCondType = var;
+                            }
+                            None => {
+                                println!("Variable does not exist locally, checking global");
+                                let checkGlobVar = self.symbolTable.getType(&varCondName.clone());
+                                match checkGlobVar{
+                                    Some(var) => {
+                                        println!("Variable exists globally");
+                                        ifCondType = var
+                                    }
+                                    None => {
+                                        println!("Error on line {}:\n Variable {} is not defined", lineNum.clone(), varCondName.clone());
+                                        return false;
+                                        
+                                    }
+                                }
+                            }
                         }
                     
+                        //Checks variable type compatability with int
+                        match ifCondType{
+                            VarType::Bool =>{
+                                println!("Variable type bool");
+                            }
+                            VarType::Int =>{
+                                println!("Variable type int");
+                            }
+                            VarType::Float =>{
+                                println!("Error on line {}:\n Cannot use variable of type float as if condition", lineNum.clone());
+                                return false;
+                            }
+                            _ => {
+                                println!("Error on line {}:\n Cannot use variable of type {} for if condition", lineNum.clone(), ifCondType.clone());
+                                return false;
+                            }
+                        }
+
+                        //Checks if the condition is good
+                        let goodCond = self.checkExpr(condition.clone());
+                        //If the condition is bad, fails here
+                        if (!goodCond){
+                            println!("Error in if condition on line {}", lineNum.clone());
+                            return false;
+                        //If the condition is good, checks the rest of the if statement
+                        } else {
+                            //Checks the if body
+                            let goodIfBody = self.checkStmt(*body);
+                            //If the body if good
+                            if(goodIfBody){
+                                println!("If body good");
+                                //Checks if there is an else
+                                match elseBody{
+                                    //Checks the else
+                                    Some(elseStmt) => {
+                                        let goodElse = self.checkStmt(*elseStmt.clone());
+                                        if(!goodElse){
+                                            println!("Error with else in if statement on line {}", lineNum.clone());
+                                            return false;
+                                        } else {
+                                            println!("If Statement with else good");
+                                            return true;
+                                        }
+                                    }
+                                    //If statement is good here if no else
+                                    None => {
+                                        println!("If statement good");
+                                        return true;
+                                    }
+
+                                }
+                            } else {
+                                println!("Error with body of if statement on line: {}", lineNum.clone());
+                                return false;
+                            }
+                        }
                     }
-                    Expr::BinOp(op1, op, op2) => {
-                        println!("ITS A BINOP");
-                        return false;
-                    }
+                
+
+                    
+                    //All of the good conditions
                     _ => {
-                        println!("Error with if condition on line {}:", lineNum);
-                        println!("Condition must be a comparator");
-                        return false;
+                        //Checks if the condition is good
+                        let goodCond = self.checkExpr(condition.clone());
+                        //If the condition is bad, fails here
+                        if (!goodCond){
+                            println!("Error in if condition on line {}", lineNum.clone());
+                            return false;
+                        //If the condition is good, checks the rest of the if statement
+                        } else {
+                            println!("If RelOp expression good");
+                            //Checks the if body
+                            let goodIfBody = self.checkStmt(*body);
+                            //If the body if good
+                            if(goodIfBody){
+                                println!("If body good");
+                                //Checks if there is an else
+                                match elseBody{
+                                    //Checks the else
+                                    Some(elseStmt) => {
+                                        let goodElse = self.checkStmt(*elseStmt.clone());
+                                        if(!goodElse){
+                                            println!("Error with else in if statement on line {}", lineNum.clone());
+                                            return false;
+                                        } else {
+                                            println!("If Statement with else good");
+                                            return true;
+                                        }
+                                    }
+                                    //If statement is good here if no else
+                                    None => {
+                                        println!("If statement good");
+                                        return true;
+                                    }
+
+                                }
+                            } else {
+                                println!("Error with body of if statement on line: {}", lineNum.clone());
+                                return false;
+                            }
+                        }
                     }
                 }
-            }
+            }    
             Stmt::For(assignment, condition, body, lineNum) => {
-                println!("Checking for loop NEEDS WRITTEN");
-                return true;
+                println!("Checking for loop");
+
+                //Checks if the condition is valid
+                let checked = self.checkExpr(condition.clone());
+                if checked {
+                    println!("For condition good");
+                    //Continue
+                } else {
+                    println!("Error with for condition on line {}", lineNum.clone());
+                    return false;
+                }
+
+                //Ensures for condition is the correct type
+                match condition.clone() {
+                    Expr::IntArrayLiteral(size, array) => {
+                        println!("Error with if condition on line {}:\n Cannot use array as condition", lineNum.clone());
+                        return false;
+                    }
+                    Expr::FloatLiteral(val) => {
+                        println!("Error with if condition on line {}:\n Cannot use float as condition", lineNum.clone());
+                        return false;
+                    }
+                    Expr::StringLiteral(val) => {
+                        println!("Error with if condition on line {}:\n Cannot use string as condition", lineNum.clone());
+                        return false;
+                    }
+                    
+                    
+                    Expr::ProcRef(procName, params) => {
+                        println!("If condition procedure {}", procName.clone());
+                        let mut procType: VarType;
+                        //Checks if procedure is defined
+                        let checkLocProc = self.symbolTable.getType(&procName.clone());
+                        match checkLocProc{
+                            Some(proc) => {
+                                println!("procedure exists locally");
+                                procType = proc;
+                            }
+                            None => {
+                                println!("Procedure does not exist locally, checking global");
+                                let checkGlobProc = self.symbolTable.getType(&procName.clone());
+                                match checkGlobProc{
+                                    Some(proc) => {
+                                        println!("procedure exists globally");
+                                        procType = proc
+                                    }
+                                    None => {
+                                        println!("Error on line {}:\n Procedure {} is not defined", lineNum.clone(), procName.clone());
+                                        return false;
+                                        
+                                    }
+                                }
+                            }
+                        }
+                    
+                        //Checks procedure type compatability with int
+                        match procType{
+                            VarType::Bool =>{
+                                println!("Procedure type bool");
+                            }
+                            VarType::Int =>{
+                                println!("Procedure type int");
+                            }
+                            VarType::Float =>{
+                                println!("Error with for condition on line {}:\n Cannot use float procedure as condition", lineNum.clone());
+                        return false;
+                            }
+                            _ => {
+                                println!("Error on line {}:\n Cannot use procedure of type {} as for condition", lineNum.clone(), procType.clone());
+                                return false;
+                            }
+                        }
+                    }   
+                    
+                    Expr::VarRef(varCondName) => {
+                        println!("Assigning: variable {}", varCondName.clone());
+                        let mut forCondType: VarType;
+                        //Checks if variable is defined
+                        let checkLocVar = self.symbolTable.getType(&varCondName.clone());
+                        match checkLocVar{
+                            Some(var) => {
+                                println!("variable exists locally");
+                                forCondType = var;
+                            }
+                            None => {
+                                println!("Variable does not exist locally, checking global");
+                                let checkGlobVar = self.symbolTable.getType(&varCondName.clone());
+                                match checkGlobVar{
+                                    Some(var) => {
+                                        println!("Variable exists globally");
+                                        forCondType = var
+                                    }
+                                    None => {
+                                        println!("Error on line {}:\n Variable {} is not defined", lineNum.clone(), varCondName.clone());
+                                        return false;
+                                        
+                                    }
+                                }
+                            }
+                        }
+                    
+                        //Checks variable type compatability with int
+                        match forCondType{
+                            VarType::Bool =>{
+                                println!("Variable type bool");
+                            }
+                            VarType::Int =>{
+                                println!("Variable type int");
+                            }
+                            VarType::Float =>{
+                                println!("Error on line {}:\n Cannot use variable of type float as for condition", lineNum.clone());
+                                return false;
+                            }
+                            _ => {
+                                println!("Error on line {}:\n Cannot use variable of type {} as for condition", lineNum.clone(), forCondType.clone());
+                                return false;
+                            }
+                        }
+                    }
+                
+
+                    
+                    //All of the good conditions
+                    _ => {
+                        //Checks if the condition is good
+                        let goodCond = self.checkExpr(condition.clone());
+                        //If the condition is bad, fails here
+                        if (!goodCond){
+                            println!("Error in if condition on line {}", lineNum.clone());
+                            return false;
+                        //If the condition is good, checks the rest of the if statement
+                        } else {
+                            println!("For condition is good");
+                        }
+                    }
+                }
+
+                //Checks the for body
+                let forBodyCheck = self.checkStmt(*body);
+                //If the body for good
+                if(forBodyCheck){
+                    println!("loop good");
+                    //Checks for there is an else
+                    return true;
+                } else {
+                    println!("Error with body of for statement on line: {}", lineNum.clone());
+                    return false;
+                }
             }
+            
+            
             Stmt::Block(stmts, lineNum) => {
                 println!("Checking block");
                 for instr in stmts {
-                    let good = self.check(instr.clone());
+                    let good = self.checkStmt(instr.clone());
                     if (!good){
                         println!("Error in header:");
                         instr.display(0);
@@ -4269,7 +5443,7 @@ impl SymbolTable{
         }
     }
 
-
+    //Checks if a variable/procedure is in the table, returns a bool
     pub fn checkItem(&mut self, itemName: &String) -> bool {
         let value = self.symTab.get(itemName);
         match value{
@@ -4374,18 +5548,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // programAst.display(0);
-
-    let mut global_table = SymbolTable::new();
-    let mut myChecker = TypeChecker::new(programAst, &mut global_table);
-    let programValid: bool = myChecker.checkProgram();
+    let mut globalTable = SymbolTable::new();
+    let mut myChecker = TypeChecker::new(programAst, &mut globalTable);
     println!("\n\nTypeChecker Created");
+    let programValid: bool = myChecker.checkProgram();
 
 
     if(!programValid){
-        println!("Error in program");
+        println!("\n\nError in program");
         return Ok(());
     } else {
-        println!("Program is valid");
+        println!("\n\nProgram is valid");
     }
 
 

@@ -3385,7 +3385,7 @@ pub enum Stmt {
     Block(Vec<Stmt>, String),               // Block statement: list of statements
     Error(Reporting, String),
     Return(Expr, String),
-    Program(String, Box<Stmt>, Box<Stmt>, String), //The program AST: Name, the statements
+    Program(String, Box<Stmt>, Box<Stmt>, String), //The program AST: Name, header block, body block, lineNum
     ProcDecl(VarType, String, Box<Stmt>, Box<Stmt>, Box<Stmt>, String), //Procedure AST: type, Name, parameter, Header, body
 }
 
@@ -3557,21 +3557,25 @@ struct TypeChecker<'a> {
     pub scope: i32,                 //The scope
     pub symbolTable: SymbolTable,   //The local table, stays in the scope
     pub globalTable: &'a mut SymbolTable,   //The global table, passed through every scope
+    pub name: String,
+    pub checked: bool,
 }
 impl<'a> TypeChecker<'a> {
     //The constructor
-    pub fn new(mut programAst: Stmt, globalTable: &'a mut SymbolTable) -> TypeChecker<'a> {
+    pub fn new(mut programAst: Stmt, globalTable: &'a mut SymbolTable, name: String) -> TypeChecker<'a> {
         TypeChecker{
             valid: true,
             ast: programAst.clone(),
             scope: 0,
             symbolTable: SymbolTable::new(),
             globalTable,
+            name,
+            checked: false,
 
         }
     }
 
-    pub fn newScope<'b>(&'b mut self, procAst: Stmt, curScope: i32) -> TypeChecker<'b>
+    pub fn newScope<'b>(&'b mut self, procAst: Stmt, curScope: i32, name: String) -> TypeChecker<'b>
     where
         'a: 'b, // Ensures the globalTable lifetime lives long enough
     {
@@ -3581,6 +3585,8 @@ impl<'a> TypeChecker<'a> {
             scope: curScope + 1,
             symbolTable: SymbolTable::new(),
             globalTable: self.globalTable, // Reuse the mutable reference to the global table
+            name,
+            checked: false,
         }
     }
 
@@ -3634,6 +3640,7 @@ impl<'a> TypeChecker<'a> {
 
                 println!("Finished checking body:");
                 // self.symbolTable.printTable();
+                self.checked = true;
                 return true
             }
             _ => {
@@ -3643,11 +3650,769 @@ impl<'a> TypeChecker<'a> {
         }
     }
     
+
+    //For checking the compatability between 2 variable/constant types
+    fn checkCompatability(&mut self, target: VarType, new: VarType) -> bool {
+        match target.clone(){
+            VarType::Bool => {
+                match new.clone(){
+                    VarType::Bool => {
+                        return true;
+                    }
+                    VarType::Float => {
+                        return false;
+                    }
+                    VarType::Int => {
+                        return true;
+                    }
+                    VarType::Str => {
+                        return false;
+                    }
+                    VarType::IntArray(size) => {
+                        return false;
+                    }
+                }
+            }
+            VarType::Float => {
+                match new.clone(){
+                    VarType::Bool => {
+                        return false;
+                    }
+                    VarType::Float => {
+                        return true;
+                    }
+                    VarType::Int => {
+                        return true;
+                    }
+                    VarType::Str => {
+                        return false;
+                    }
+                    VarType::IntArray(size) => {
+                        return false;
+                    }
+                }
+            }
+            VarType::Int => {
+                match new.clone(){
+                    VarType::Bool => {
+                        return true;
+                    }
+                    VarType::Float => {
+                        return true;
+                    }
+                    VarType::Int => {
+                        return true;
+                    }
+                    VarType::Str => {
+                        return false;
+                    }
+                    VarType::IntArray(size) => {
+                        return false;
+                    }
+                }
+            }
+            VarType::Str => {
+                match new.clone(){
+                    VarType::Bool => {
+                        return false;
+                    }
+                    VarType::Float => {
+                        return false;
+                    }
+                    VarType::Int => {
+                        return false;
+                    }
+                    VarType::Str => {
+                        return true;
+                    }
+                    VarType::IntArray(size) => {
+                        return false;
+                    }
+                }
+            }
+            VarType::IntArray(targSize) => {
+                match new.clone(){
+                    VarType::Bool => {
+                        return false;
+                    }
+                    VarType::Float => {
+                        return false;
+                    }
+                    VarType::Int => {
+                        return false;
+                    }
+                    VarType::Str => {
+                        return false;
+                    }
+                    VarType::IntArray(newSize) => {
+                        if(targSize == newSize){
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn checkExprCompatability(&mut self, target: VarType, new: Expr) -> bool {
+        let checked = self.checkExpr(new.clone());
+        if checked {
+            match target.clone(){
+                VarType::Bool => {
+                    match new{
+                        //Literals
+                        Expr::IntLiteral(val) => {
+                            return true;
+                        }
+                        Expr::FloatLiteral(val) => {
+                            return false;
+                        }
+                        Expr::StringLiteral(val) => {
+                            return false;
+                        }
+                        Expr::BoolLiteral(val) => {
+                            return true;
+                        }
+                        Expr::IntArrayLiteral(size, val) => {
+                            return false;
+                        }
+                    
+                        //References
+                        Expr::VarRef(varName) => {
+                            let varTypeLocCheck = self.symbolTable.getType(&varName.clone());
+                            match varTypeLocCheck{
+                                Some(varType) => {
+                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    return compat;
+                                }
+                                None => {
+                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    match varGlobTypeCheck{
+                                        Some(varType) => {
+                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            return compat;
+                                        }
+                                        None => {
+                                            println!("Variable {} not defined", varName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            
+                        }
+                        //References
+                        Expr::ProcRef(varName, params) => {
+                            
+                            
+                            
+                            let procTypeLocCheck = self.symbolTable.getType(&varName.clone());
+                            match procTypeLocCheck{
+                                Some(varType) => {
+                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    return compat;
+                                }
+                                None => {
+                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    match varGlobTypeCheck{
+                                        Some(varType) => {
+                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            return compat;
+                                        }
+                                        None => {
+                                            println!("Variable {} not defined", varName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            
+                        }
+                        Expr::ArrayRef(name, index) => {
+                            return true;
+                        }
+                        
+                        //Operations
+                        Expr::ArthOp(op1, op, op2) => {
+                            return true;
+                        }
+                        Expr::LogOp(op1, op, op2) => {
+                            return true;
+                        }
+                        Expr::RelOp(op1, op, op2) => {
+                            return true;
+                        }
+
+                    }
+                }
+                VarType::Float => {
+                    match new{
+                        //Literals
+                        Expr::IntLiteral(val) => {
+                            return true;
+                        }
+                        Expr::FloatLiteral(val) => {
+                            return true;
+                        }
+                        Expr::StringLiteral(val) => {
+                            return false;
+                        }
+                        Expr::BoolLiteral(val) => {
+                            return false;
+                        }
+                        Expr::IntArrayLiteral(size, val) => {
+                            return false;
+                        }
+                    
+                        //References
+                        Expr::VarRef(varName) => {
+                            let varTypeLocCheck = self.symbolTable.getType(&varName.clone());
+                            match varTypeLocCheck{
+                                Some(varType) => {
+                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    return compat;
+                                }
+                                None => {
+                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    match varGlobTypeCheck{
+                                        Some(varType) => {
+                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            return compat;
+                                        }
+                                        None => {
+                                            println!("Variable {} not defined", varName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            
+                        }
+                        //References
+                        Expr::ProcRef(varName, params) => {
+                            
+                            
+                            
+                            let procTypeLocCheck = self.symbolTable.getType(&varName.clone());
+                            match procTypeLocCheck{
+                                Some(varType) => {
+                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    return compat;
+                                }
+                                None => {
+                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    match varGlobTypeCheck{
+                                        Some(varType) => {
+                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            return compat;
+                                        }
+                                        None => {
+                                            println!("Variable {} not defined", varName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            
+                        }
+                        Expr::ArrayRef(name, index) => {
+                            return true;
+                        }
+                        
+                        //Operations
+                        Expr::ArthOp(op1, op, op2) => {
+                            return true;
+                        }
+                        Expr::LogOp(op1, op, op2) => {
+                            return false;
+                        }
+                        Expr::RelOp(op1, op, op2) => {
+                            return false;
+                        }
+
+                    }
+                }
+                VarType::Int => {
+                    match new{
+                        //Literals
+                        Expr::IntLiteral(val) => {
+                            return true;
+                        }
+                        Expr::FloatLiteral(val) => {
+                            return true;
+                        }
+                        Expr::StringLiteral(val) => {
+                            return false;
+                        }
+                        Expr::BoolLiteral(val) => {
+                            return true;
+                        }
+                        Expr::IntArrayLiteral(size, val) => {
+                            return false;
+                        }
+                    
+                        //References
+                        Expr::VarRef(varName) => {
+                            let varTypeLocCheck = self.symbolTable.getType(&varName.clone());
+                            match varTypeLocCheck{
+                                Some(varType) => {
+                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    return compat;
+                                }
+                                None => {
+                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    match varGlobTypeCheck{
+                                        Some(varType) => {
+                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            return compat;
+                                        }
+                                        None => {
+                                            println!("Variable {} not defined", varName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            
+                        }
+                        //References
+                        Expr::ProcRef(varName, params) => {
+                            
+                            
+                            
+                            let procTypeLocCheck = self.symbolTable.getType(&varName.clone());
+                            match procTypeLocCheck{
+                                Some(varType) => {
+                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    return compat;
+                                }
+                                None => {
+                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    match varGlobTypeCheck{
+                                        Some(varType) => {
+                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            return compat;
+                                        }
+                                        None => {
+                                            println!("Variable {} not defined", varName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            
+                        }
+                        Expr::ArrayRef(name, index) => {
+                            return true;
+                        }
+                        
+                        //Operations
+                        Expr::ArthOp(op1, op, op2) => {
+                            return true;
+                        }
+                        Expr::LogOp(op1, op, op2) => {
+                            return true;
+                        }
+                        Expr::RelOp(op1, op, op2) => {
+                            return true;
+                        }
+
+                    }
+                }
+                VarType::IntArray(targetSizee) => {
+                    match new{
+                        //Literals
+                        Expr::IntLiteral(val) => {
+                            return false;
+                        }
+                        Expr::FloatLiteral(val) => {
+                            return false;
+                        }
+                        Expr::StringLiteral(val) => {
+                            return false;
+                        }
+                        Expr::BoolLiteral(val) => {
+                            return false;
+                        }
+                        Expr::IntArrayLiteral(size, val) => {
+                            if (targetSizee == size){
+                                return true;
+                            } else {
+                                return false
+                            }
+                        }
+                    
+                        //References
+                        Expr::VarRef(varName) => {
+                            let varTypeLocCheck = self.symbolTable.getType(&varName.clone());
+                            match varTypeLocCheck{
+                                Some(varType) => {
+                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    return compat;
+                                }
+                                None => {
+                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    match varGlobTypeCheck{
+                                        Some(varType) => {
+                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            return compat;
+                                        }
+                                        None => {
+                                            println!("Variable {} not defined", varName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            
+                        }
+                        //References
+                        Expr::ProcRef(varName, params) => {
+                            
+                            
+                            
+                            let procTypeLocCheck = self.symbolTable.getType(&varName.clone());
+                            match procTypeLocCheck{
+                                Some(varType) => {
+                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    return compat;
+                                }
+                                None => {
+                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    match varGlobTypeCheck{
+                                        Some(varType) => {
+                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            return compat;
+                                        }
+                                        None => {
+                                            println!("Variable {} not defined", varName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            
+                        }
+                        Expr::ArrayRef(name, index) => {
+                            return false;
+                        }
+                        
+                        //Operations
+                        Expr::ArthOp(op1, op, op2) => {
+                            return false;
+                        }
+                        Expr::LogOp(op1, op, op2) => {
+                            return false;
+                        }
+                        Expr::RelOp(op1, op, op2) => {
+                            return false;
+                        }
+
+                    }
+                }
+                VarType::Str => {
+                    match new{
+                        //Literals
+                        Expr::IntLiteral(val) => {
+                            return false;
+                        }
+                        Expr::FloatLiteral(val) => {
+                            return false;
+                        }
+                        Expr::StringLiteral(val) => {
+                            return true;
+                        }
+                        Expr::BoolLiteral(val) => {
+                            return false;
+                        }
+                        Expr::IntArrayLiteral(size, val) => {
+                            return false;
+                        }
+                    
+                        //References
+                        Expr::VarRef(varName) => {
+                            let varTypeLocCheck = self.symbolTable.getType(&varName.clone());
+                            match varTypeLocCheck{
+                                Some(varType) => {
+                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    return compat;
+                                }
+                                None => {
+                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    match varGlobTypeCheck{
+                                        Some(varType) => {
+                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            return compat;
+                                        }
+                                        None => {
+                                            println!("Variable {} not defined", varName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            
+                        }
+                        //References
+                        Expr::ProcRef(varName, params) => {
+                            
+                            
+                            
+                            let procTypeLocCheck = self.symbolTable.getType(&varName.clone());
+                            match procTypeLocCheck{
+                                Some(varType) => {
+                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    return compat;
+                                }
+                                None => {
+                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    match varGlobTypeCheck{
+                                        Some(varType) => {
+                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            return compat;
+                                        }
+                                        None => {
+                                            println!("Variable {} not defined", varName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            
+                        }
+                        Expr::ArrayRef(name, index) => {
+                            return false;
+                        }
+                        
+                        //Operations
+                        Expr::ArthOp(op1, op, op2) => {
+                            return false;
+                        }
+                        Expr::LogOp(op1, op, op2) => {
+                            return false;
+                        }
+                        Expr::RelOp(op1, op, op2) => {
+                            return false;
+                        }
+
+                    }
+                }
+            }
+        } else {
+            return false;
+        }
+    }
+
     pub fn checkExpr(&mut self, mut checkExpr: Expr) -> bool{
         println!("Checking expressions");
-        match checkExpr{
-            _ => {
-                println!("unaccounted expression type");
+        match checkExpr.clone(){
+            //Literals
+            Expr::IntLiteral(val) => {
+                return true;
+            }
+            Expr::FloatLiteral(val) => {
+                return true;
+            }
+            Expr::StringLiteral(val) => {
+                return true;
+            }
+            Expr::BoolLiteral(val) => {
+                return true;
+            }
+            Expr::IntArrayLiteral(size, array) => {
+                return true;
+            }
+            
+            //References
+            Expr::VarRef(varName) => {
+                //Gets the type if defined in local scope
+                let checkLocVar = self.symbolTable.get(&varName.clone());
+                match checkLocVar{
+                    Some(var) => {
+                        if var.hashType != HashItemType::Variable {
+                            println!("{} is not a variable", varName.clone());
+                            return false;
+                        } else {
+                            println!("Var is good");
+                            return true;
+                        }
+                    }
+                    None => {
+                        let checkGlobVar = self.globalTable.get(&varName.clone());
+                            match checkGlobVar{
+                                Some(var) => {
+                                    if var.hashType != HashItemType::Variable {
+                                        println!("{} is not a variable", varName.clone());
+                                        return true;
+                                    } else {
+                                        println!("Var is good");
+                                        return true;
+                                    }
+                                }
+                                None => {
+                                    println!("Variable {} is not defined", varName.clone());
+                                    return true;
+                                }
+                            }
+                    }
+                }
+                
+            }
+            Expr::ProcRef(procName, params) => {
+                if (self.checked.clone() == false) & (self.name.clone() == procName.clone()){
+                    println!("CHECKING TEST");
+                    return true;
+                } else {
+                    println!("PROCEDURE CALL {}, checked: {}, program: {} ", procName.clone(), self.checked.clone(), self.name.clone());
+                    //Gets the type if defined in local scope
+                    let checkProc = self.symbolTable.get(&procName.clone());
+                    match checkProc.clone(){
+                        Some(proc) => {
+                            if let HashItemType::Procedure(procAst, procParamList, mut procSt) = proc.hashType.clone() {
+                                //Proc found, need to check params now
+                                match params.clone(){
+                                    Some(paramsVec) => {
+                                        if (procParamList.len() == paramsVec.len()) {
+                                            //the numbers are correct at least
+                                            let mut i = 0;
+                                            //Checks all of the params
+                                            for param in paramsVec.clone() {
+                                                let targetTypeCheck = procSt.getType(&procParamList[i].clone());
+                                                match targetTypeCheck{
+                                                    Some(targetType) => {
+                                                        let compatable = self.checkExprCompatability(targetType.clone(), param.clone());
+                                                        if compatable {
+                                                            //Continue to checking next param
+                                                        } else {
+                                                            println!("Error with call to procedure {}: param {} is type {}, which is incompatible with given type {}", procName.clone(), procParamList[i].clone(), targetType.clone(), param.clone());
+                                                            return false;
+                                                        }
+                                                    }
+                                                    None => {
+                                                        println!("Some sort of error with the procedure symbol table. Could not located defined parameter in table");
+                                                        return false;
+                                                    }
+                                                }
+                                                i += 1;
+                                            }
+                                            println!("All params good");
+                                            return true;
+
+                                        } else {
+                                            println!("Error with call to procedure {}: {} params required, {} provided", procName.clone(), paramsVec.len().to_string(), procParamList.len().clone().to_string())
+                                        }
+                                    }
+                                    None => {
+                                        if (procParamList.len() == 0){
+                                            return true;
+                                        } else {
+                                            println!("Procedure call to {} missing parameters", procName.clone());
+                                            return false;
+                                        }
+                                    }
+                                }
+                                return true;
+                            } else {
+                                println!("{} is not defined as a procedure", procName.clone());
+                                return false;
+                            }
+                        }
+                        None => {
+                            //CHECK IN GLOBAL SCOPE GOES HERE
+                            //Gets the type if defined in local scope
+                            let checkGlobProc = self.globalTable.get(&procName.clone());
+                            match checkGlobProc.clone(){
+                                Some(proc) => {
+                                    if let HashItemType::Procedure(procAst, procParamList, mut procSt) = proc.hashType.clone() {
+                                        //Proc found, need to check params now
+                                        match params.clone(){
+                                            Some(paramsVec) => {
+                                                if (procParamList.len() == paramsVec.len()) {
+                                                    //the numbers are correct at least
+                                                    let mut i = 0;
+                                                    //Checks all of the params
+                                                    for param in paramsVec.clone() {
+                                                        let targetTypeCheck = procSt.getType(&procParamList[i].clone());
+                                                        match targetTypeCheck{
+                                                            Some(targetType) => {
+                                                                let compatable = self.checkExprCompatability(targetType.clone(), param.clone());
+                                                                if compatable {
+                                                                    //Continue to checking next param
+                                                                } else {
+                                                                    println!("Error with call to procedure {}: param {} is type {}, which is incompatible with given type {}", procName.clone(), procParamList[i].clone(), targetType.clone(), param.clone());
+                                                                    return false;
+                                                                }
+                                                            }
+                                                            None => {
+                                                                println!("Some sort of error with the procedure symbol table. Could not located defined parameter in table");
+                                                                return false;
+                                                            }
+                                                        }
+                                                        i += 1;
+                                                    }
+                                                    println!("All params good");
+                                                    return true;
+
+                                                } else {
+                                                    println!("Error with call to procedure {}: {} params required, {} provided", procName.clone(), paramsVec.len().to_string(), procParamList.len().clone().to_string())
+                                                }
+                                            }
+                                            None => {
+                                                if (procParamList.len() == 0){
+                                                    return true;
+                                                } else {
+                                                    println!("Procedure call to {} missing parameters", procName.clone());
+                                                    return false;
+                                                }
+                                            }
+                                        }
+                                        return true;
+                                    } else {
+                                        println!("{} is not defined as a procedure", procName.clone());
+                                        return false;
+                                    }
+                                }
+                                None => {
+                                    //CHECK IN GLOBAL SCOPE GOES HERE
+                                    
+                                    println!("Procedure {} is not defined", procName.clone());
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+            }
+            //Needs written
+            Expr::ArrayRef(varName, indexExpr) => {
+                println!("ARRAY REFERENCE EXPRESSION CHECK, needs written");
+                return true;
+            }
+            
+            //Operations
+            Expr::ArthOp(op1, op, op2) => {
+                println!("ARTHOP NEEDS WRITTEN");
+                return true;
+            }
+            Expr::LogOp(op1, op, op2) => {
+                println!("LOGOP NEEDS WRITTEN");
+                return true;
+            }
+            Expr::RelOp(op1, op, op2) => {
+                println!("RELOP NEEDS WRITTEN");
                 return true;
             }
         }
@@ -3709,7 +4474,7 @@ impl<'a> TypeChecker<'a> {
 
                 let curScope = self.scope.clone();
 
-                let mut procChecker: TypeChecker = self.newScope(procAst, curScope);
+                let mut procChecker: TypeChecker = self.newScope(procAst, curScope, procName.clone());
                 //Iterates through the parameters, registering them in the Symboltable and copying the names to the list of params
                 if let Stmt::Block(ref instrs, lineNum) = *params.clone() {
                     for instr in instrs {
@@ -3737,8 +4502,12 @@ impl<'a> TypeChecker<'a> {
                     return false;
                 }
 
+                println!("fucked");
+
                 //Checks the procedure to make sure its all good
                 let procGood = procChecker.checkProgram();
+
+                println!("fuck");
 
                 //If the procedure is good, appends to the symboltable and moved on
                 if(!procGood){
@@ -3750,12 +4519,15 @@ impl<'a> TypeChecker<'a> {
                         let mut procItemType = HashItemType::newProcItem(body.clone(), paramStrings.clone(), procChecker.symbolTable.clone());
                         let mut procItem: HashItem = HashItem::newProc(procName.clone(), retType.clone(), procItemType);
                         self.symbolTable.symTab.insert(procName.clone(), procItem.clone());
+                        println!("Inserted procedure {} into local scope of {}", procName.clone(), self.name.clone());
+                        
                         return true;
                     } else {
                         //Sets up the things and inserts the procedure into the symboltable
                         let mut procItemType = HashItemType::newProcItem(body.clone(), paramStrings.clone(), procChecker.symbolTable.clone());
                         let mut procItem: HashItem = HashItem::newProc(procName.clone(), retType.clone(), procItemType);
                         self.globalTable.symTab.insert(procName.clone(), procItem.clone());
+                        println!("Inserted procedure {} into global scope", procName.clone());
                         return true;
                     }
                 }
@@ -3881,51 +4653,54 @@ impl<'a> TypeChecker<'a> {
                                 
                                 //Calls/references
                                 Expr::ProcRef(procName, params) => {
-                                    println!("Assigning: procedure {}", procName.clone());
-                                    let mut procType: VarType;
-                                    //Checks if procedure is defined
-                                    let checkLocProc = self.symbolTable.getType(&procName.clone());
-                                    match checkLocProc{
-                                        Some(proc) => {
-                                            println!("procedure exists locally");
-                                            procType = proc;
-                                        }
-                                        None => {
-                                            println!("Procedure does not exist locally, checking global");
-                                            let checkGlobProc = self.symbolTable.getType(&procName.clone());
-                                            match checkGlobProc{
-                                                Some(proc) => {
-                                                    println!("procedure exists globally");
-                                                    procType = proc
-                                                }
-                                                None => {
-                                                    println!("Error on line {}:\n Procedure {} is not defined", lineNum.clone(), procName.clone());
-                                                    return false;
-                                                    
+                                    if (self.checked.clone() == false) & (self.name.clone() == procName.clone()){
+                                        println!("CHECKING TEST");
+                                        return true;
+                                    } else {    println!("Assigning: procedure {}", procName.clone());
+                                        let mut procType: VarType;
+                                        //Checks if procedure is defined
+                                        let checkLocProc = self.symbolTable.getType(&procName.clone());
+                                        match checkLocProc{
+                                            Some(proc) => {
+                                                println!("procedure exists locally");
+                                                procType = proc;
+                                            }
+                                            None => {
+                                                println!("Procedure does not exist locally, checking global");
+                                                let checkGlobProc = self.globalTable.getType(&procName.clone());
+                                                match checkGlobProc{
+                                                    Some(proc) => {
+                                                        println!("procedure exists globally");
+                                                        procType = proc
+                                                    }
+                                                    None => {
+                                                        println!("Error on line {}:\n Procedure {} is not defined", lineNum.clone(), procName.clone());
+                                                        return false;
+                                                        
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
-                                
-                                    //Checks procedure type compatability with int
-                                    match procType{
-                                        VarType::Bool =>{
-                                            println!("Procedure type bool");
-                                            return true;
-                                        }
-                                        VarType::Int =>{
-                                            println!("Procedure type int");
-                                            return true;
-                                        }
-                                        VarType::Float =>{
-                                            println!("Procedure type float");
-                                            return true;
-                                        }
-                                        _ => {
-                                            println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), procType.clone(), targName.clone(), targType.clone());
-                                            return false;
-                                        }
-                                    }
+                                    
+                                        //Checks procedure type compatability with int
+                                        match procType{
+                                            VarType::Bool =>{
+                                                println!("Procedure type bool");
+                                                return true;
+                                            }
+                                            VarType::Int =>{
+                                                println!("Procedure type int");
+                                                return true;
+                                            }
+                                            VarType::Float =>{
+                                                println!("Procedure type float");
+                                                return true;
+                                            }
+                                            _ => {
+                                                println!("Error on line {}:\n Cannot assign {} to variable {} of type {}", lineNum.clone(), procType.clone(), targName.clone(), targType.clone());
+                                                return false;
+                                            }
+                                        }}
                                 }   
                                 Expr::VarRef(assignName) => {
                                     println!("Assigning: variable {}", assignName.clone());
@@ -5271,9 +6046,7 @@ impl<'a> TypeChecker<'a> {
                     println!("Error with body of for statement on line: {}", lineNum.clone());
                     return false;
                 }
-            }
-            
-            
+            }  
             Stmt::Block(stmts, lineNum) => {
                 println!("Checking block");
                 for instr in stmts {
@@ -5289,11 +6062,28 @@ impl<'a> TypeChecker<'a> {
                 println!("All statements in block checked");
                 return true;
             }
-            //For whatever is left
-            _ => {
-
-                println!("Unaccounted");
-                return true
+            Stmt::Error(report, errMsg) => {
+                println!("Error found in AST: {}", errMsg);
+                return false;
+            }
+            Stmt::Program(name, header, body, lineNum) => {
+                println!("Program statement");
+                return true;
+            }
+            Stmt::Return(retVal, lineNum) => {
+                println!("Return statement");
+                let checked = self.checkExpr(retVal.clone());
+                if checked {
+                    println!("return statement good");
+                    return true;
+                } else {
+                    println!("Error with return statement on line {}", lineNum.clone());
+                    return false;
+                }
+            }
+            Stmt::StringLiteral(val, lineNum) => {
+                println!("Stringliteral Stmt, this should never occur and was used for debugging");
+                return true;
             }
         }
     }
@@ -5387,11 +6177,11 @@ impl SymbolTable{
 
         // //THESE NEED TO BE WRITTEN TO INCLUDE ACTUAL STUFF
         // let mut builtInHash: HashMap<String, HashItem> = HashMap::new();
-        // let builtInStmt = Stmt::StringLiteral(("NULL".to_string()));
+        // let builtInStmt = Stmt::StringLiteral(("NULL".to_string()), "0".to_string());
         // let builtInParams = Vec::new();
         // //Seeding the symbol table with the built in functions
         // let builtIns = vec![
-        //     ("getbool", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
+        //     "getbool", HashItem::newProc(geBool, VarType::Bool, HashItemType::Procedure((), (), ())),
         //     ("getinteger", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
         //     ("getstring", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
         //     ("putbool", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
@@ -5549,7 +6339,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // programAst.display(0);
     let mut globalTable = SymbolTable::new();
-    let mut myChecker = TypeChecker::new(programAst, &mut globalTable);
+    let mut myChecker = TypeChecker::new(programAst, &mut globalTable, "Main".to_string());
     println!("\n\nTypeChecker Created");
     let programValid: bool = myChecker.checkProgram();
 
@@ -5560,6 +6350,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         println!("\n\nProgram is valid");
     }
+
+    println!("test");
 
 
     Ok(())

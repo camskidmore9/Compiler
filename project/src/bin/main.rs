@@ -98,6 +98,8 @@ pub enum tokenTypeEnum{
     FOR,
 
     PROCEDURE_CALL,
+    TRUE,
+    FALSE,
 
     
     
@@ -156,9 +158,8 @@ impl fmt::Display for tokenTypeEnum {
             tokenTypeEnum::OR => "OR",
             tokenTypeEnum::NOT => "NOT",
             tokenTypeEnum::NOT_EQUALS => "NOT_EQUALS",
-
-
-
+            tokenTypeEnum::TRUE => "TRUE",
+            tokenTypeEnum::FALSE => "FALSE",
             // tokenTypeEnum::OPERATOR => "OPERATOR",
 
 
@@ -670,7 +671,7 @@ impl Lexer{
                     if (nextToken.tg == tokenGroup::VARIABLE) && (prevToken.tg == tokenGroup::OPERATOR) {
                         // println!("Found a neg number");
                         let newString = format!("-{}", nextToken.tokenString.clone());
-                        let newToken = Token::new(nextToken.tt.clone(), newString, nextToken.lineNum.to_string(), tokenGroup::NUMBER);
+                        let newToken = Token::new(nextToken.tt.clone(), newString, nextToken.lineNum.to_string(), tokenGroup::CONSTANT);
                         newTokList.push(newToken.clone());
                         i = i + 1;
                     } else {
@@ -854,6 +855,9 @@ impl tokenTable{
             ("return", Token::new(tokenTypeEnum::RETURN, "return".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
             ("for", Token::new(tokenTypeEnum::FOR, "for".to_string(), "0".to_string(), tokenGroup::KEYWORD)),
             ("not", Token::new(tokenTypeEnum::NOT, "not".to_string(), "0".to_string(), tokenGroup::OPERATOR)),
+            ("true", Token::new(tokenTypeEnum::TRUE, "true".to_string(), "0".to_string(), tokenGroup::CONSTANT)),
+            ("false", Token::new(tokenTypeEnum::FALSE, "false".to_string(), "0".to_string(), tokenGroup::CONSTANT)),
+
 
 
 
@@ -902,7 +906,8 @@ pub enum tokenGroup{
     VARIABLE,
     OTHER,
     SYMBOL,
-    NUMBER,
+    CONSTANT,
+
 }
 //Display for tokenGroup
 impl fmt::Display for tokenGroup {
@@ -913,7 +918,7 @@ impl fmt::Display for tokenGroup {
             &tokenGroup::VARIABLE => "VARIABLE",
             &tokenGroup::OTHER => "OTHER",
             &tokenGroup::SYMBOL => "SYMBOL",
-            &tokenGroup::NUMBER => "NUMBER",
+            &tokenGroup::CONSTANT => "NUMBER",
 
         };
         write!(f, "{}", variant_str)
@@ -1902,7 +1907,7 @@ impl Parser{
                         
 
                     }
-                    tokenGroup::NUMBER => {
+                    tokenGroup::CONSTANT => {
                         println!("NUMBER");
                         
                         return Ok(None);
@@ -2796,7 +2801,7 @@ impl Parser{
             }
             tokenTypeEnum::INT => {
                 let mut retStmt:Stmt;
-                
+                println!("integer");
                 let mut k = 0;
                 let mut nextTok = &tokenList[k];
                 let mut curStmt: Vec<&Token> = vec![];
@@ -3127,6 +3132,7 @@ impl Parser{
                     return Err("Error with expression".to_string());
                 }
             }
+            
             tokenTypeEnum::PROCEDURE_CALL => {
                 println!("PROCEDURE CALL");
                 
@@ -3652,7 +3658,7 @@ impl<'a> TypeChecker<'a> {
     
 
     //For checking the compatability between 2 variable/constant types
-    fn checkCompatability(&mut self, target: VarType, new: VarType) -> bool {
+    fn checkTypeCompatability(&mut self, target: VarType, new: VarType) -> bool {
         match target.clone(){
             VarType::Bool => {
                 match new.clone(){
@@ -3756,7 +3762,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn checkExprCompatability(&mut self, target: VarType, new: Expr) -> bool {
+    fn checkExprTypeCompatability(&mut self, target: VarType, new: Expr) -> bool {
         let checked = self.checkExpr(new.clone());
         if checked {
             match target.clone(){
@@ -3784,14 +3790,14 @@ impl<'a> TypeChecker<'a> {
                             let varTypeLocCheck = self.symbolTable.getType(&varName.clone());
                             match varTypeLocCheck{
                                 Some(varType) => {
-                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                     return compat;
                                 }
                                 None => {
                                     let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
-                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                             return compat;
                                         }
                                         None => {
@@ -3812,14 +3818,14 @@ impl<'a> TypeChecker<'a> {
                             let procTypeLocCheck = self.symbolTable.getType(&varName.clone());
                             match procTypeLocCheck{
                                 Some(varType) => {
-                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                     return compat;
                                 }
                                 None => {
                                     let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
-                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                             return compat;
                                         }
                                         None => {
@@ -3873,14 +3879,14 @@ impl<'a> TypeChecker<'a> {
                             let varTypeLocCheck = self.symbolTable.getType(&varName.clone());
                             match varTypeLocCheck{
                                 Some(varType) => {
-                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                     return compat;
                                 }
                                 None => {
                                     let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
-                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                             return compat;
                                         }
                                         None => {
@@ -3901,14 +3907,14 @@ impl<'a> TypeChecker<'a> {
                             let procTypeLocCheck = self.symbolTable.getType(&varName.clone());
                             match procTypeLocCheck{
                                 Some(varType) => {
-                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                     return compat;
                                 }
                                 None => {
                                     let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
-                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                             return compat;
                                         }
                                         None => {
@@ -3962,14 +3968,14 @@ impl<'a> TypeChecker<'a> {
                             let varTypeLocCheck = self.symbolTable.getType(&varName.clone());
                             match varTypeLocCheck{
                                 Some(varType) => {
-                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                     return compat;
                                 }
                                 None => {
                                     let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
-                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                             return compat;
                                         }
                                         None => {
@@ -3990,14 +3996,14 @@ impl<'a> TypeChecker<'a> {
                             let procTypeLocCheck = self.symbolTable.getType(&varName.clone());
                             match procTypeLocCheck{
                                 Some(varType) => {
-                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                     return compat;
                                 }
                                 None => {
                                     let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
-                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                             return compat;
                                         }
                                         None => {
@@ -4055,14 +4061,14 @@ impl<'a> TypeChecker<'a> {
                             let varTypeLocCheck = self.symbolTable.getType(&varName.clone());
                             match varTypeLocCheck{
                                 Some(varType) => {
-                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                     return compat;
                                 }
                                 None => {
                                     let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
-                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                             return compat;
                                         }
                                         None => {
@@ -4083,14 +4089,14 @@ impl<'a> TypeChecker<'a> {
                             let procTypeLocCheck = self.symbolTable.getType(&varName.clone());
                             match procTypeLocCheck{
                                 Some(varType) => {
-                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                     return compat;
                                 }
                                 None => {
                                     let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
-                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                             return compat;
                                         }
                                         None => {
@@ -4144,14 +4150,14 @@ impl<'a> TypeChecker<'a> {
                             let varTypeLocCheck = self.symbolTable.getType(&varName.clone());
                             match varTypeLocCheck{
                                 Some(varType) => {
-                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                     return compat;
                                 }
                                 None => {
                                     let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
-                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                             return compat;
                                         }
                                         None => {
@@ -4172,14 +4178,14 @@ impl<'a> TypeChecker<'a> {
                             let procTypeLocCheck = self.symbolTable.getType(&varName.clone());
                             match procTypeLocCheck{
                                 Some(varType) => {
-                                    let compat = self.checkCompatability(target.clone(), varType.clone());
+                                    let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                     return compat;
                                 }
                                 None => {
                                     let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
-                                            let compat = self.checkCompatability(target.clone(), varType.clone());
+                                            let compat = self.checkTypeCompatability(target.clone(), varType.clone());
                                             return compat;
                                         }
                                         None => {
@@ -4212,6 +4218,38 @@ impl<'a> TypeChecker<'a> {
             }
         } else {
             return false;
+        }
+    }
+
+    fn checkExprExprCompatability(&mut self, target: Expr, new: Expr) -> bool {
+        println!("NEED TO WRITE EXPR COMPATABILITY checker");
+        return true;
+    }
+
+    //This is used to check the type of a variable or procedure in first the local then global scope
+    //Returns the type if found
+    fn checkVar(&mut self, varName: String) -> Option<VarType> {
+        //Checks the local scope first
+        let checkedLoc = self.symbolTable.getType(&varName.clone());
+        match checkedLoc{
+            Some(var) => {
+                //this means the variable exists locally
+                return Some(var);
+            }
+            None => {
+                //this means it was not found locally, checking globally
+                let checkedGlob = self.globalTable.getType(&varName.clone());
+                match checkedGlob{
+                    Some(var) => {
+                        //it was found globally
+                        return Some(var);
+                    }
+                    None => {
+                        //This means it was not found globally or locally
+                        return None;
+                    }
+                }
+            }
         }
     }
 
@@ -4292,7 +4330,7 @@ impl<'a> TypeChecker<'a> {
                                                 let targetTypeCheck = procSt.getType(&procParamList[i].clone());
                                                 match targetTypeCheck{
                                                     Some(targetType) => {
-                                                        let compatable = self.checkExprCompatability(targetType.clone(), param.clone());
+                                                        let compatable = self.checkExprTypeCompatability(targetType.clone(), param.clone());
                                                         if compatable {
                                                             //Continue to checking next param
                                                         } else {
@@ -4347,7 +4385,7 @@ impl<'a> TypeChecker<'a> {
                                                         let targetTypeCheck = procSt.getType(&procParamList[i].clone());
                                                         match targetTypeCheck{
                                                             Some(targetType) => {
-                                                                let compatable = self.checkExprCompatability(targetType.clone(), param.clone());
+                                                                let compatable = self.checkExprTypeCompatability(targetType.clone(), param.clone());
                                                                 if compatable {
                                                                     //Continue to checking next param
                                                                 } else {
@@ -4404,21 +4442,609 @@ impl<'a> TypeChecker<'a> {
             
             //Operations
             Expr::ArthOp(op1, op, op2) => {
-                println!("ARTHOP NEEDS WRITTEN");
+                //First checks operand 1 to ensure it is valid
+                let checkedOp1 = self.checkExpr(*op1.clone());
+                if !checkedOp1 {
+                    println!("Error in operand one of arithmetic operation");
+                    return false;
+                }
+                //Checks operand 2
+                let checkedOp2 = self.checkExpr(*op2.clone());
+                if !checkedOp2{
+                    println!("Error in operand two of arithmetic operation");
+                    return false;
+                }
+
+                //Since both are good, need to ensure both are compatabile with ArthOps
+                match *op1 {
+                    Expr::IntLiteral(val) => {
+                        //continue
+                    }
+                    Expr::FloatLiteral(val) => {
+                        //continue
+                    }
+                    Expr::StringLiteral(val) => {
+                        println!("Cannot use string in arithmetic operation");
+                        return false;
+                    }
+                    Expr::BoolLiteral(val) => {
+                        println!("Cannot use boolean as operand in arithmetic operation");
+                        return false;
+                    }
+                    Expr::IntArrayLiteral(size, val) => {
+                        println!("Cannot use entire array in arithmetic operation");
+                        return false;
+                    }
+                    Expr::VarRef(varName) => {
+                        let mut op1Type: VarType;
+                        let op1TypeCheck = self.checkVar(varName.clone());
+                        match op1TypeCheck{
+                            Some(foundType) => {
+                                op1Type = foundType;
+                            }
+                            None => {
+                                println!("Referenced to undefined {}", varName.clone());
+                                return false;
+                            }
+                        }
+                    
+                        //Now we have to check if the type is compatible with the arthop
+                        match op1Type{
+                            VarType::Float => {
+                                //continue
+                            }
+                            VarType::Int => {
+                                //continue
+                            }
+                            _ => {
+                                println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
+                                return false;
+                            }
+                        }
+                    
+                    }
+                    Expr::ProcRef(procName, params) => {
+                        let mut op1Type: VarType;
+                        let op1TypeCheck = self.checkVar(procName.clone());
+                        match op1TypeCheck{
+                            Some(foundType) => {
+                                op1Type = foundType;
+                            }
+                            None => {
+                                println!("Referenced to undefined {}", procName.clone());
+                                return false;
+                            }
+                        }
+                    
+                        //Now we have to check if the type is compatible with the arthop
+                        match op1Type{
+                            VarType::Float => {
+                                //continue
+                            }
+                            VarType::Int => {
+                                //continue
+                            }
+                            _ => {
+                                println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                                return false;
+                            }
+                        }
+                    }
+                    Expr::ArrayRef(varName, indexExpr) => {
+                        //continue
+                    }
+                    Expr::ArthOp(operand1, op, operand2) => {
+                        //continue
+                    }
+                    Expr::LogOp(operand1, oeprator, operand2) => {
+                        println!("Cannot use a logical operation as an operand in arithmetic operation");
+                        return false;
+                    }
+                    Expr::RelOp(operand1, operator, operand2) => {
+                        println!("Cannot use a relational operation as an operand in arithmetic operation");
+                        return false;
+                    }
+               }
+
+
+               //Checks the compatability of operand 2
+               match *op2 {
+                Expr::IntLiteral(val) => {
+                    //continue
+                }
+                Expr::FloatLiteral(val) => {
+                    //continue
+                }
+                Expr::StringLiteral(val) => {
+                    println!("Cannot use string in arithmetic operation");
+                    return false;
+                }
+                Expr::BoolLiteral(val) => {
+                    println!("Cannot use boolean as operand in arithmetic operation");
+                    return false;
+                }
+                Expr::IntArrayLiteral(size, val) => {
+                    println!("Cannot use entire array in arithmetic operation");
+                    return false;
+                }
+                Expr::VarRef(varName) => {
+                    let mut op1Type: VarType;
+                    let op1TypeCheck = self.checkVar(varName.clone());
+                    match op1TypeCheck{
+                        Some(foundType) => {
+                            op1Type = foundType;
+                        }
+                        None => {
+                            println!("Referenced to undefined {}", varName.clone());
+                            return false;
+                        }
+                    }
+                
+                    //Now we have to check if the type is compatible with the arthop
+                    match op1Type{
+                        VarType::Float => {
+                            //continue
+                        }
+                        VarType::Int => {
+                            //continue
+                        }
+                        _ => {
+                            println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
+                            return false;
+                        }
+                    }
+                
+                }
+                Expr::ProcRef(procName, params) => {
+                    let mut op1Type: VarType;
+                    let op1TypeCheck = self.checkVar(procName.clone());
+                    match op1TypeCheck{
+                        Some(foundType) => {
+                            op1Type = foundType;
+                        }
+                        None => {
+                            println!("Referenced to undefined {}", procName.clone());
+                            return false;
+                        }
+                    }
+                
+                    //Now we have to check if the type is compatible with the arthop
+                    match op1Type{
+                        VarType::Float => {
+                            //continue
+                        }
+                        VarType::Int => {
+                            //continue
+                        }
+                        _ => {
+                            println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                            return false;
+                        }
+                    }
+                }
+                Expr::ArrayRef(varName, indexExpr) => {
+                    //continue
+                }
+                Expr::ArthOp(operand1, op, operand2) => {
+                    //continue
+                }
+                Expr::LogOp(operand1, oeprator, operand2) => {
+                    println!("Cannot use a logical operation as an operand in arithmetic operation");
+                    return false;
+                }
+                Expr::RelOp(operand1, operator, operand2) => {
+                    println!("Cannot use a relational operation as an operand in arithmetic operation");
+                    return false;
+                }
+           }
+
+
+                //Now that we are here and everything has been checked, we are good
+                println!("Arthop good");
                 return true;
             }
+            
             Expr::LogOp(op1, op, op2) => {
-                println!("LOGOP NEEDS WRITTEN");
+                //First checks operand 1 to ensure it is valid
+                let checkedOp1 = self.checkExpr(*op1.clone());
+                if !checkedOp1 {
+                    println!("Error in operand one of arithmetic operation");
+                    return false;
+                }
+                //Checks operand 2
+                let checkedOp2 = self.checkExpr(*op2.clone());
+                if !checkedOp2{
+                    println!("Error in operand two of arithmetic operation");
+                    return false;
+                }
+
+                //Since both are good, need to ensure both are compatabile with ArthOps
+                match *op1 {
+                    Expr::IntLiteral(val) => {
+                        //continue
+                    }
+                    Expr::FloatLiteral(val) => {
+                        println!("Cannot use float as operand in logical operation");
+                        return false;
+                    }
+                    Expr::StringLiteral(val) => {
+                        println!("Cannot use string as operand in arithmetic operation");
+                        return false;
+                    }
+                    Expr::BoolLiteral(val) => {
+                        println!("Cannot use string as operand in arithmetic operation");
+                        return false;
+                    }
+                    Expr::IntArrayLiteral(size, val) => {
+                        println!("Cannot use entire array as operand in logical operation");
+                        return false;
+                    }
+                    Expr::VarRef(varName) => {
+                        let mut op1Type: VarType;
+                        let op1TypeCheck = self.checkVar(varName.clone());
+                        match op1TypeCheck{
+                            Some(foundType) => {
+                                op1Type = foundType;
+                            }
+                            None => {
+                                println!("Referenced to undefined {}", varName.clone());
+                                return false;
+                            }
+                        }
+                    
+                        //Now we have to check if the type is compatible with the arthop
+                        match op1Type{
+                            VarType::Int => {
+                                //continue
+                            }
+                            _ => {
+                                println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
+                                return false;
+                            }
+                        }
+                    
+                    }
+                    Expr::ProcRef(procName, params) => {
+                        let mut op1Type: VarType;
+                        let op1TypeCheck = self.checkVar(procName.clone());
+                        match op1TypeCheck{
+                            Some(foundType) => {
+                                op1Type = foundType;
+                            }
+                            None => {
+                                println!("Referenced to undefined {}", procName.clone());
+                                return false;
+                            }
+                        }
+                    
+                        //Now we have to check if the type is compatible with the arthop
+                        match op1Type{
+                            VarType::Int => {
+                                //continue
+                            }
+                            _ => {
+                                println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                                return false;
+                            }
+                        }
+                    }
+                    Expr::ArrayRef(varName, indexExpr) => {
+                        //continue
+                    }
+                    Expr::ArthOp(operand1, op, operand2) => {
+                        //continue
+                    }
+                    Expr::LogOp(operand1, oeprator, operand2) => {
+                        println!("Cannot use a logical operation as an operand in logical operation");
+                        return false;
+                    }
+                    Expr::RelOp(operand1, operator, operand2) => {
+                        println!("Cannot use a relational operation as an operand in logical operation");
+                        return false;
+                    }
+               }
+
+
+               //Checks the compatability of operand 2
+               match *op2 {
+                Expr::IntLiteral(val) => {
+                    //continue
+                }
+                Expr::FloatLiteral(val) => {
+                    println!("Cannot use float as operand in logical operation");
+                    return false;
+                }
+                Expr::StringLiteral(val) => {
+                    println!("Cannot use string as operand in arithmetic operation");
+                    return false;
+                }
+                Expr::BoolLiteral(val) => {
+                    println!("Cannot use string as operand in arithmetic operation");
+                    return false;
+                }
+                Expr::IntArrayLiteral(size, val) => {
+                    println!("Cannot use entire array as operand in logical operation");
+                    return false;
+                }
+                Expr::VarRef(varName) => {
+                    let mut op1Type: VarType;
+                    let op1TypeCheck = self.checkVar(varName.clone());
+                    match op1TypeCheck{
+                        Some(foundType) => {
+                            op1Type = foundType;
+                        }
+                        None => {
+                            println!("Referenced to undefined {}", varName.clone());
+                            return false;
+                        }
+                    }
+                
+                    //Now we have to check if the type is compatible with the arthop
+                    match op1Type{
+                        VarType::Int => {
+                            //continue
+                        }
+                        _ => {
+                            println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
+                            return false;
+                        }
+                    }
+                
+                }
+                Expr::ProcRef(procName, params) => {
+                    let mut op1Type: VarType;
+                    let op1TypeCheck = self.checkVar(procName.clone());
+                    match op1TypeCheck{
+                        Some(foundType) => {
+                            op1Type = foundType;
+                        }
+                        None => {
+                            println!("Referenced to undefined {}", procName.clone());
+                            return false;
+                        }
+                    }
+                
+                    //Now we have to check if the type is compatible with the arthop
+                    match op1Type{
+                        VarType::Int => {
+                            //continue
+                        }
+                        _ => {
+                            println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                            return false;
+                        }
+                    }
+                }
+                Expr::ArrayRef(varName, indexExpr) => {
+                    //continue
+                }
+                Expr::ArthOp(operand1, op, operand2) => {
+                    //continue
+                }
+                Expr::LogOp(operand1, oeprator, operand2) => {
+                    println!("Cannot use a logical operation as an operand in logical operation");
+                    return false;
+                }
+                Expr::RelOp(operand1, operator, operand2) => {
+                    println!("Cannot use a relational operation as an operand in logical operation");
+                    return false;
+                }
+           }
+
+                //Now that we are here and everything has been checked, we are good
+                println!("LogOp good");
                 return true;
             }
             Expr::RelOp(op1, op, op2) => {
-                println!("RELOP NEEDS WRITTEN");
+                //First checks operand 1 to ensure it is valid
+                let checkedOp1 = self.checkExpr(*op1.clone());
+                if !checkedOp1 {
+                    println!("Error in operand one of relational operation");
+                    return false;
+                }
+                //Checks operand 2
+                let checkedOp2 = self.checkExpr(*op2.clone());
+                if !checkedOp2{
+                    println!("Error in operand two of relational operation");
+                    return false;
+                }
+
+                //Since both are good, need to ensure both are compatabile with ArthOps
+                match *op1 {
+                    Expr::IntLiteral(val) => {
+                        //continue
+                    }
+                    Expr::FloatLiteral(val) => {
+                        //continue
+                    }
+                    Expr::StringLiteral(val) => {
+                        println!("Cannot use string as operand in relational operation");
+                        return false;
+                    }
+                    Expr::BoolLiteral(val) => {
+                        //continue
+                    }
+                    Expr::IntArrayLiteral(size, val) => {
+                        println!("Cannot use entire array as operand in logical operation");
+                        return false;
+                    }
+                    Expr::VarRef(varName) => {
+                        let mut op1Type: VarType;
+                        let op1TypeCheck = self.checkVar(varName.clone());
+                        match op1TypeCheck{
+                            Some(foundType) => {
+                                op1Type = foundType;
+                            }
+                            None => {
+                                println!("Referenced to undefined {}", varName.clone());
+                                return false;
+                            }
+                        }
+                    
+                        //Now we have to check if the type is compatible with the arthop
+                        match op1Type{
+                            VarType::Int => {
+                                //continue
+                            }
+                            VarType::Float => {
+                                //continue
+                            }
+                            VarType::Bool => {
+                                //continue
+                            }
+                            _ => {
+                                println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
+                                return false;
+                            }
+                        }
+                    
+                    }
+                    Expr::ProcRef(procName, params) => {
+                        let mut op1Type: VarType;
+                        let op1TypeCheck = self.checkVar(procName.clone());
+                        match op1TypeCheck{
+                            Some(foundType) => {
+                                op1Type = foundType;
+                            }
+                            None => {
+                                println!("Referenced to undefined {}", procName.clone());
+                                return false;
+                            }
+                        }
+                    
+                        //Now we have to check if the type is compatible with the arthop
+                        match op1Type{
+                            VarType::Int => {
+                                //continue
+                            }
+                            VarType::Float => {
+                                //continue
+                            }
+                            VarType::Bool => {
+                                //continue
+                            }
+                            _ => {
+                                println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                                return false;
+                            }
+                        }
+                    }
+                    Expr::ArrayRef(varName, indexExpr) => {
+                        //continue
+                    }
+                    Expr::ArthOp(operand1, op, operand2) => {
+                        //continue
+                    }
+                    Expr::LogOp(operand1, oeprator, operand2) => {
+                        //continue
+                    }
+                    Expr::RelOp(operand1, operator, operand2) => {
+                        //continue
+                    }
+               }
+
+
+               //Checks the compatability of operand 2
+                match *op2 {
+                    Expr::IntLiteral(val) => {
+                        //continue
+                    }
+                    Expr::FloatLiteral(val) => {
+                        //continue
+                    }
+                    Expr::StringLiteral(val) => {
+                        println!("Cannot use string as operand in relational operation");
+                        return false;
+                    }
+                    Expr::BoolLiteral(val) => {
+                        //continue
+                    }
+                    Expr::IntArrayLiteral(size, val) => {
+                        println!("Cannot use entire array as operand in logical operation");
+                        return false;
+                    }
+                    Expr::VarRef(varName) => {
+                        let mut op1Type: VarType;
+                        let op1TypeCheck = self.checkVar(varName.clone());
+                        match op1TypeCheck{
+                            Some(foundType) => {
+                                op1Type = foundType;
+                            }
+                            None => {
+                                println!("Referenced to undefined {}", varName.clone());
+                                return false;
+                            }
+                        }
+                    
+                        //Now we have to check if the type is compatible with the arthop
+                        match op1Type{
+                            VarType::Int => {
+                                //continue
+                            }
+                            VarType::Float => {
+                                //continue
+                            }
+                            VarType::Bool => {
+                                //continue
+                            }
+                            _ => {
+                                println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
+                                return false;
+                            }
+                        }
+                    
+                    }
+                    Expr::ProcRef(procName, params) => {
+                        let mut op1Type: VarType;
+                        let op1TypeCheck = self.checkVar(procName.clone());
+                        match op1TypeCheck{
+                            Some(foundType) => {
+                                op1Type = foundType;
+                            }
+                            None => {
+                                println!("Referenced to undefined {}", procName.clone());
+                                return false;
+                            }
+                        }
+                    
+                        //Now we have to check if the type is compatible with the arthop
+                        match op1Type{
+                            VarType::Int => {
+                                //continue
+                            }
+                            VarType::Float => {
+                                //continue
+                            }
+                            VarType::Bool => {
+                                //continue
+                            }
+                            _ => {
+                                println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                                return false;
+                            }
+                        }
+                    }
+                    Expr::ArrayRef(varName, indexExpr) => {
+                        //continue
+                    }
+                    Expr::ArthOp(operand1, op, operand2) => {
+                        //continue
+                    }
+                    Expr::LogOp(operand1, oeprator, operand2) => {
+                        //continue
+                    }
+                    Expr::RelOp(operand1, operator, operand2) => {
+                        //continue
+                    }
+                }
+
+                //Now that we are here and everything has been checked, we are good
+                println!("RelOp good");
                 return true;
             }
         }
     }
     
-
     //Checks each statement one at a time, returns a bool if there's an error
     pub fn checkStmt(&mut self, mut checkStmt: Stmt) -> bool{
         match (checkStmt){

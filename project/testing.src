@@ -6,6 +6,7 @@ variable out : bool;
 //variable out : bool;
 //variable myArray : integer[15];
 global variable x: integer;
+variable val: string;
 
 
 
@@ -48,9 +49,11 @@ begin
 
 value[5] := 5;
 
-//x := 5 + 1;
+x := 5 + 1;
 
 x := val + (1 + x);
+x := "balls";
+testProc();
 
 //z[5] := 6;
 

@@ -333,12 +333,12 @@ impl Lexer{
                     }
                 }
                 self.inputFile.unGetChar();
-                let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
-                newToken.lineNum = self.inputFile.lineCnt.to_string();
-                if newToken.tt != tokType {
-                    newToken.tt = tokType;
-                }
-                //let newToken: Token = Token::new(tokType,tokenString, self.inputFile.lineCnt.to_string());
+                // let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
+                // newToken.lineNum = self.inputFile.lineCnt.to_string();
+                // if newToken.tt != tokType {
+                //     newToken.tt = tokType;
+                // }
+                let newToken: Token = Token::new(tokType,tokenString, self.inputFile.lineCnt.to_string(), tokenGroup::CONSTANT);
                 return newToken;
             }
 
@@ -786,7 +786,7 @@ impl inFile {
 
 //Token class, this is where tokens are defined and setup
 #[derive(Clone, PartialEq)]
-struct Token{
+pub struct Token{
     tt: tokenTypeEnum,
     tokenString: String,
     tg: tokenGroup,
@@ -857,9 +857,6 @@ impl tokenTable{
             ("not", Token::new(tokenTypeEnum::NOT, "not".to_string(), "0".to_string(), tokenGroup::OPERATOR)),
             ("true", Token::new(tokenTypeEnum::TRUE, "true".to_string(), "0".to_string(), tokenGroup::CONSTANT)),
             ("false", Token::new(tokenTypeEnum::FALSE, "false".to_string(), "0".to_string(), tokenGroup::CONSTANT)),
-
-
-
 
         ];
 
@@ -1009,7 +1006,7 @@ impl Parser{
 
 
         //Initializes the variable that is being referenced first
-        let mut varRef:Expr = Expr::StringLiteral(("NONE".to_string()));
+        let mut firstOp:Expr = Expr::StringLiteral(("NONE".to_string()));
 
         //Initializes values for finding the end of the expression
         let mut k = 0;
@@ -1091,13 +1088,13 @@ impl Parser{
             // println!("New value expressions: {}", newValueExpr);
 
             let indexBox = Box::new(indexExpr);
-            varRef = Expr::ArrayRef((varName), (indexBox));
+            firstOp = Expr::ArrayRef((varName), (indexBox));
 
             //Removes the array reference so there is just the ] left
             curStmt.drain(0..brackInd);
         } else if (curStmt[0].tg == tokenGroup::VARIABLE){
             //If not an array
-            varRef = Expr::VarRef(curStmt[0].tokenString.clone());
+            firstOp = Expr::VarRef(curStmt[0].tokenString.clone());
 
         } else if (curStmt[0].tt == tokenTypeEnum::L_PAREN) { 
             // println!("Parentheses found!!!!");
@@ -1143,8 +1140,8 @@ impl Parser{
 
             let scanned = self.parseExpr(&mut parStmt);                            
             match scanned {
-                Ok(stmt) => {
-                    varRef = stmt;
+                Ok(expr) => {
+                    firstOp = expr;
                 },
                 Err(reporting) => {
                     println!("Error parsing paren expression: {:?}", reporting);
@@ -1156,6 +1153,7 @@ impl Parser{
             // println!("extracted paren statement:");
             // printTokList(&parStmt);
             // println!("Parsed paren expression: {}", varRef);
+            
 
 
 
@@ -1224,28 +1222,39 @@ impl Parser{
                 // }
                 let procCall = Expr::ProcRef((procName), (Some(params)));
                 
-                varRef = procCall;
+                firstOp = procCall;
                 curStmt.drain(0..p+1);
 
 
             } else {
                 println!("No params");
                 let procCall = Expr::ProcRef((procName), (None));
-                varRef = procCall;
+                firstOp = procCall;
                 curStmt.drain(0..1);
             }
-        }
-        
-        else {
+        } else if (curStmt[0].tg ==tokenGroup::CONSTANT) {
+            println!("CONSTANT FOUND");
+            
+            let constCheck = Expr::newCon(curStmt[0].clone());
+            match constCheck{
+                Ok(constExpr) => {
+                    firstOp = constExpr;
+                }
+                Err(msg) => {
+                    return Err(msg);
+                }
+            }
+            // firstOp = Expr::
+        } else {
             // println!("Expression first not a variable reference");
-            match &varRef {
+            match &firstOp {
                 Expr::StringLiteral(s) if s == "NONE" => {
                     // println!("Uninitialized varRef");
                     let empty:Expr = Expr::StringLiteral(("NONE".to_string())); 
                     let valRef = Expr::new(curStmt[0].tt.clone(), Some(curStmt[0].tokenString.clone()));
                     match valRef {
                         Ok(expr) => {
-                            varRef = expr;
+                            firstOp = expr;
                         } Err(err) => {
                             let errMsg = format!("error on line {}: {}", curStmt[0].lineNum.to_string(), err);
                             return(Err(errMsg));
@@ -1273,7 +1282,7 @@ impl Parser{
         if(curStmt.len() > 2){
             // println!("Complex expression");
 
-            let operand1 = varRef;
+            let operand1 = firstOp;
             let operatorRes = Operator::new(curStmt[1].tt.clone());
             let mut operator: Operator;
             match operatorRes {
@@ -1320,7 +1329,7 @@ impl Parser{
             // println!("Simple expressions");
             
             if(curStmt[0].tt == tokenTypeEnum::R_PAREN){
-                return(Ok(varRef));
+                return(Ok(firstOp));
             }
 
 
@@ -1343,7 +1352,7 @@ impl Parser{
         } else {
             // println!("ERROR: no expression to parse");
             // return(Err("No expression to parse".to_string()));
-            return(Ok(varRef));
+            return(Ok(firstOp));
         }
 
         
@@ -3132,12 +3141,47 @@ impl Parser{
                     return Err("Error with expression".to_string());
                 }
             }
-            
+            tokenTypeEnum::TRUE => {
+                let trueExpr = Expr::BoolLiteral(true);
+                return Ok(Some(Stmt::Expr((trueExpr), (tokenList[0].lineNum.clone()))));
+            }
+            tokenTypeEnum::FALSE => {
+                let falseExpr = Expr::BoolLiteral(false);
+                return Ok(Some(Stmt::Expr((falseExpr), (tokenList[0].lineNum.clone()))));
+            }
             tokenTypeEnum::PROCEDURE_CALL => {
                 println!("PROCEDURE CALL");
+                let mut k = 1;
+                let mut nextTok = &tokenList[k];
+                // println!("Found a variable token");
+                let mut curStmt: Vec<Token> = vec![];
+                curStmt.push(token.clone());
+                while nextTok.tt != tokenTypeEnum::SEMICOLON {
+                    curStmt.push(nextTok.clone());
+                    k = k + 1;
+                    nextTok = &tokenList[k];
+
+                    // println!("iterating");
+                }
+                curStmt.push(nextTok.clone());
+
+
+                // println!("Procedure call:");
+                // printTokList(&curStmt.clone());
+                let mut procExpr: Expr;
+                let procCallExpr = self.parseExpr(&mut curStmt.clone());
+                match procCallExpr{
+                    Ok(expr) => {
+                        procExpr = expr;
+                    }
+                    Err(ErrMsg) => {
+                        let errMsg = format!("Error with parsing procedure call on line {}", curStmt[0].lineNum.clone());
+                        return Err(errMsg);
+                    }
+                }
                 
-                tokenList.drain(0..1);
-                return Ok((None));
+                tokenList.drain(0..k+1);
+                return Ok(Some(Stmt::Expr((procExpr), (curStmt[0].lineNum.clone()))));
             }
             _ => {
                 // i = i + 1;
@@ -3259,6 +3303,12 @@ impl Expr {
                 let value = param1.ok_or("StringLiteral requires a string parameter".to_string())?.to_string();
                 Ok(Expr::StringLiteral(value))
             },
+            tokenTypeEnum::FALSE => {
+                return Ok(Expr::BoolLiteral(false));
+            }
+            tokenTypeEnum::TRUE => {
+                return Ok(Expr::BoolLiteral(true));
+            }
             
             // "BinOp" => {
             //     let left = param3.ok_or("BinOp requires a left operand".to_string())?;
@@ -3314,6 +3364,35 @@ impl Expr {
             //The remainder (arthmetic operators)
             _ => {
                 return  Expr::ArthOp(Box::new(*op1), operand, Box::new(*op2));
+            }
+        }
+    }
+
+    pub fn newCon(constant: Token) -> Result<Expr, String>{
+        if constant.tg.clone() != tokenGroup::CONSTANT {
+            let errMsg = format!("Error parsing constant {} on line {}", constant.tokenString.clone(), constant.lineNum.clone());
+            return Err(errMsg);
+        } else {
+            match constant.tt.clone(){
+                tokenTypeEnum::FALSE => {
+                    return Ok(Expr::BoolLiteral(false));
+                }
+                tokenTypeEnum::TRUE => {
+                    return Ok(Expr::BoolLiteral(true));
+                }
+                tokenTypeEnum::FLOAT => {
+                    return Ok(Expr::FloatLiteral(constant.tokenString.clone().parse().unwrap()));
+                }
+                tokenTypeEnum::INT => {
+                    return Ok(Expr::IntLiteral(constant.tokenString.clone().parse().unwrap()));
+                }
+                tokenTypeEnum::STRING => {
+                    return Ok(Expr::StringLiteral(constant.tokenString.clone()));
+                }
+                _ => {
+                    let errMsg = format!("Error parsing constant {} on line {}: Invalid constant type {}", constant.tokenString.clone(), constant.lineNum.clone(), constant.tt.clone());
+                    return Err(errMsg);
+                }
             }
         }
     }
@@ -3699,6 +3778,7 @@ impl<'a> TypeChecker<'a> {
                 }
             }
             VarType::Int => {
+                // println!("Checking int");
                 match new.clone(){
                     VarType::Bool => {
                         return true;
@@ -6957,27 +7037,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(reporting) => {
             eprintln!("\n\nParsing failed.");
-            // eprintln!("Reporting: {:?}", reporting);
+            eprintln!("Reporting: {:?}", reporting);
             return Ok(());
             // Handle the error gracefully, log, recover, etc.
         }
     }
 
     // programAst.display(0);
+    
     let mut globalTable = SymbolTable::new();
     let mut myChecker = TypeChecker::new(programAst, &mut globalTable, "Main".to_string());
     println!("\n\nTypeChecker Created");
     let programValid: bool = myChecker.checkProgram();
 
 
-    if(!programValid){
-        println!("\n\nError in program");
-        return Ok(());
-    } else {
-        println!("\n\nProgram is valid");
-    }
+    // if(!programValid){
+    //     println!("\n\nError in program");
+    //     return Ok(());
+    // } else {
+    //     println!("\n\nProgram is valid");
+    // }
 
-    println!("test");
+    // println!("test");
 
 
     Ok(())

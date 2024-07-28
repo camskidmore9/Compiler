@@ -6,7 +6,7 @@ variable out : bool;
 //variable out : bool;
 //variable myArray : integer[15];
 global variable x: integer;
-variable val: string;
+variable val: integer;
 
 
 
@@ -47,13 +47,15 @@ begin
 //LogOp(Box<Expr>, Operator, Box<Expr>),      //Operator for logical/bitwise equations (op1, operator (&, |, !), op2)
 
 
-value[5] := 5;
+//value[5] := 5;
+x := x + -5;
+//x := 5 + 1;
 
-x := 5 + 1;
+//x := val + (1 + x);
+//x := 7.5;
+//testProc();
 
-x := val + (1 + x);
-x := "balls";
-testProc();
+putInteger(x);
 
 //z[5] := 6;
 

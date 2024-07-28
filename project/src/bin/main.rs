@@ -668,7 +668,7 @@ impl Lexer{
                 tokenTypeEnum::MINUS => {
                     let nextToken = &self.tokenList[i+1];
                     let prevToken = &self.tokenList[i-1];
-                    if (nextToken.tg == tokenGroup::VARIABLE) && (prevToken.tg == tokenGroup::OPERATOR) {
+                    if ((nextToken.tg == tokenGroup::VARIABLE) || (nextToken.tg == tokenGroup::CONSTANT)) && ((prevToken.tg == tokenGroup::OPERATOR) || (prevToken.tt == tokenTypeEnum::SET_EQUALS)) {
                         // println!("Found a neg number");
                         let newString = format!("-{}", nextToken.tokenString.clone());
                         let newToken = Token::new(nextToken.tt.clone(), newString, nextToken.lineNum.to_string(), tokenGroup::CONSTANT);
@@ -2207,6 +2207,7 @@ impl Parser{
                 }
             }
             tokenTypeEnum::FOR => {
+                println!("Foor loop");
                 //Finds the end of the FOR statement
                 let mut k = 0;
                 let mut nextTok = &tokenList[k];
@@ -2411,6 +2412,7 @@ impl Parser{
                 return Ok(Some(retStmt));
             }
             tokenTypeEnum::PROCEDURE => {
+                println!("Parsing procedure");
                 //Finds the end of the procedure
                 let mut retStmt:Stmt;
                 
@@ -2445,8 +2447,8 @@ impl Parser{
                 }
                 curStmt.push(nextTok.clone());
                 
-                // println!("procedure tokens:");
-                // printTokList(&curStmt);
+                println!("procedure tokens:");
+                printTokList(&curStmt);
 
                 let procId = &curStmt[1].tokenString.clone();
                 let procType = VarType::new(&curStmt[3].tokenString);    
@@ -2730,7 +2732,8 @@ impl Parser{
                 let procedureAst = Stmt::ProcDecl(procedureType, procId.clone(), boxParams, boxHeader, boxBody, tokenList[0].lineNum.clone());
                 // procedureAst.display(0);
                 
-                tokenList.drain(0..);
+                tokenList.drain(0..k + 2);
+                // println!("NEXT AFTER PROCEDURE {}", tokenList[0].tokenString.clone());
                 return Ok(Some(procedureAst));
             }
             tokenTypeEnum::RETURN => {
@@ -4052,7 +4055,8 @@ impl<'a> TypeChecker<'a> {
                                     return compat;
                                 }
                                 None => {
-                                    let varGlobTypeCheck = self.symbolTable.getType(&varName.clone());
+                                    let varGlobTypeCheck = self.globalTable.getType(&varName.clone());
+                                    println!("Checking if var {} in global scope", varName.clone());
                                     match varGlobTypeCheck{
                                         Some(varType) => {
                                             let compat = self.checkTypeCompatability(target.clone(), varType.clone());
@@ -4373,7 +4377,7 @@ impl<'a> TypeChecker<'a> {
                                 Some(var) => {
                                     if var.hashType != HashItemType::Variable {
                                         println!("{} is not a variable", varName.clone());
-                                        return true;
+                                        return false;
                                     } else {
                                         println!("Var is good");
                                         return true;
@@ -4576,6 +4580,9 @@ impl<'a> TypeChecker<'a> {
                             VarType::Int => {
                                 //continue
                             }
+                            VarType::IntArray(size) => {
+                                //continue
+                            }
                             _ => {
                                 println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
                                 return false;
@@ -4584,29 +4591,33 @@ impl<'a> TypeChecker<'a> {
                     
                     }
                     Expr::ProcRef(procName, params) => {
-                        let mut op1Type: VarType;
-                        let op1TypeCheck = self.checkVar(procName.clone());
-                        match op1TypeCheck{
-                            Some(foundType) => {
-                                op1Type = foundType;
+                        if (self.checked.clone() == false) & (self.name.clone() == procName.clone()){
+                            println!("CHECKING TEST");
+                            return true;
+                        } else {    let mut op1Type: VarType;
+                            let op1TypeCheck = self.checkVar(procName.clone());
+                            match op1TypeCheck{
+                                Some(foundType) => {
+                                    op1Type = foundType;
+                                }
+                                None => {
+                                    println!("Referenced to undefined {}", procName.clone());
+                                    return false;
+                                }
                             }
-                            None => {
-                                println!("Referenced to undefined {}", procName.clone());
-                                return false;
-                            }
-                        }
-                    
-                        //Now we have to check if the type is compatible with the arthop
-                        match op1Type{
-                            VarType::Float => {
-                                //continue
-                            }
-                            VarType::Int => {
-                                //continue
-                            }
-                            _ => {
-                                println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
-                                return false;
+                        
+                            //Now we have to check if the type is compatible with the arthop
+                            match op1Type{
+                                VarType::Float => {
+                                    //continue
+                                }
+                                VarType::Int => {
+                                    //continue
+                                }
+                                _ => {
+                                    println!("Cannot use procedure {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                                    return false;
+                                }
                             }
                         }
                     }
@@ -4668,6 +4679,9 @@ impl<'a> TypeChecker<'a> {
                         VarType::Int => {
                             //continue
                         }
+                        VarType::IntArray(size) => {
+                            //continue
+                        }
                         _ => {
                             println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
                             return false;
@@ -4676,29 +4690,34 @@ impl<'a> TypeChecker<'a> {
                 
                 }
                 Expr::ProcRef(procName, params) => {
-                    let mut op1Type: VarType;
-                    let op1TypeCheck = self.checkVar(procName.clone());
-                    match op1TypeCheck{
-                        Some(foundType) => {
-                            op1Type = foundType;
+                    if (self.checked.clone() == false) & (self.name.clone() == procName.clone()){
+                        println!("CHECKING TEST");
+                        return true;
+                    } else {
+                        let mut op1Type: VarType;
+                        let op1TypeCheck = self.checkVar(procName.clone());
+                        match op1TypeCheck{
+                            Some(foundType) => {
+                                op1Type = foundType;
+                            }
+                            None => {
+                                println!("Referenced to undefined {}", procName.clone());
+                                return false;
+                            }
                         }
-                        None => {
-                            println!("Referenced to undefined {}", procName.clone());
-                            return false;
-                        }
-                    }
-                
-                    //Now we have to check if the type is compatible with the arthop
-                    match op1Type{
-                        VarType::Float => {
-                            //continue
-                        }
-                        VarType::Int => {
-                            //continue
-                        }
-                        _ => {
-                            println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
-                            return false;
+                    
+                        //Now we have to check if the type is compatible with the arthop
+                        match op1Type{
+                            VarType::Float => {
+                                //continue
+                            }
+                            VarType::Int => {
+                                //continue
+                            }
+                            _ => {
+                                println!("Cannot use procedure {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                                return false;
+                            }
                         }
                     }
                 }
@@ -4777,8 +4796,11 @@ impl<'a> TypeChecker<'a> {
                             VarType::Int => {
                                 //continue
                             }
+                            VarType::IntArray(size) => {
+                                //continue
+                            }
                             _ => {
-                                println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
+                                println!("Cannot use variable {} of type {} in logical operation", varName.clone(), op1Type.clone());
                                 return false;
                             }
                         }
@@ -4803,7 +4825,7 @@ impl<'a> TypeChecker<'a> {
                                 //continue
                             }
                             _ => {
-                                println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                                println!("Cannot use procedure {} of type {} in logical operation", procName.clone(), op1Type.clone());
                                 return false;
                             }
                         }
@@ -4864,8 +4886,11 @@ impl<'a> TypeChecker<'a> {
                         VarType::Int => {
                             //continue
                         }
+                        VarType::IntArray(size) => {
+                            //continue
+                        }
                         _ => {
-                            println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
+                            println!("Cannot use variable {} of type {} in logical operation", varName.clone(), op1Type.clone());
                             return false;
                         }
                     }
@@ -4890,7 +4915,7 @@ impl<'a> TypeChecker<'a> {
                             //continue
                         }
                         _ => {
-                            println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                            println!("Cannot use procedure {} of type {} in logical operation", procName.clone(), op1Type.clone());
                             return false;
                         }
                     }
@@ -4973,7 +4998,7 @@ impl<'a> TypeChecker<'a> {
                                 //continue
                             }
                             _ => {
-                                println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
+                                println!("Cannot use variable {} of type {} in relational operation", varName.clone(), op1Type.clone());
                                 return false;
                             }
                         }
@@ -5004,7 +5029,7 @@ impl<'a> TypeChecker<'a> {
                                 //continue
                             }
                             _ => {
-                                println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                                println!("Cannot use procedure {} of type {} in relational operation", procName.clone(), op1Type.clone());
                                 return false;
                             }
                         }
@@ -5068,7 +5093,7 @@ impl<'a> TypeChecker<'a> {
                                 //continue
                             }
                             _ => {
-                                println!("Cannot use variable {} of type {} in arithmetic operation", varName.clone(), op1Type.clone());
+                                println!("Cannot use variable {} of type {} in relational operation", varName.clone(), op1Type.clone());
                                 return false;
                             }
                         }
@@ -5099,7 +5124,7 @@ impl<'a> TypeChecker<'a> {
                                 //continue
                             }
                             _ => {
-                                println!("Cannot use variable {} of type {} in arithmetic operation", procName.clone(), op1Type.clone());
+                                println!("Cannot use procedure {} of type {} in relational operation", procName.clone(), op1Type.clone());
                                 return false;
                             }
                         }
@@ -5130,6 +5155,7 @@ impl<'a> TypeChecker<'a> {
         match (checkStmt){
             //For checking and declaring local variables
             Stmt::VarDecl(varName, varType, lineNum) => {
+                println!("Declaring variable {} of type {}", varName.clone(), varType.clone());
                 if self.scope != 0 {
                     let defined = self.symbolTable.checkItem(&varName.clone());
                     if(defined){
@@ -5635,8 +5661,8 @@ impl<'a> TypeChecker<'a> {
                                     return true;
                                 }
                                 Expr::FloatLiteral(val) => {
-                                    println!("Error on line {}:\n Cannot assign float to variable of type bool", lineNum.clone());
-                                    return false;
+                                    println!("Assigning: float");
+                                    return true;
                                 }
                                 Expr::ArrayRef(name, index) => {
                                     println!("Assinging: Int Array ref");
@@ -6881,26 +6907,83 @@ impl SymbolTable{
         //Creates the empty hash map
         let mut symHash: HashMap<String, HashItem> = HashMap::new();
 
-        // //THESE NEED TO BE WRITTEN TO INCLUDE ACTUAL STUFF
-        // let mut builtInHash: HashMap<String, HashItem> = HashMap::new();
-        // let builtInStmt = Stmt::StringLiteral(("NULL".to_string()), "0".to_string());
-        // let builtInParams = Vec::new();
-        // //Seeding the symbol table with the built in functions
-        // let builtIns = vec![
-        //     "getbool", HashItem::newProc(geBool, VarType::Bool, HashItemType::Procedure((), (), ())),
-        //     ("getinteger", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
-        //     ("getstring", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
-        //     ("putbool", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
-        //     ("putinteger", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
-        //     ("putfloat", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
-        //     ("putstring", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
-        //     ("sqrt", HashItem::Proc(VarType::Bool(true), builtInHash.clone(), builtInParams.clone(), builtInStmt.clone())),
+        //Seeding the symbol table with the built in functions
+        let builtIns = vec![
+            ("getbool", HashItem::newProc("getbool".to_string(), VarType::Bool, HashItemType::Procedure(Box::new(Stmt::StringLiteral("NONE".to_string(), ("0".to_string()))), Vec::new(), SymbolTable::newBuiltIn()))),
+            ("getinteger", HashItem::newProc("getinteger".to_string(), VarType::Int, HashItemType::Procedure(Box::new(Stmt::StringLiteral("NONE".to_string(), ("0".to_string()))), Vec::new(), SymbolTable::newBuiltIn()))),
+            ("getfloat", HashItem::newProc("getfloat".to_string(), VarType::Float, HashItemType::Procedure(Box::new(Stmt::StringLiteral("NONE".to_string(), ("0".to_string()))), Vec::new(), SymbolTable::newBuiltIn()))),
+            ("getstring", HashItem::newProc("getstring".to_string(), VarType::Str, HashItemType::Procedure(Box::new(Stmt::StringLiteral("NONE".to_string(), ("0".to_string()))), Vec::new(), SymbolTable::newBuiltIn()))),
+            ("getbool", HashItem::newProc("getBool".to_string(), VarType::Bool, HashItemType::Procedure(Box::new(Stmt::StringLiteral("NONE".to_string(), ("0".to_string()))), Vec::new(), SymbolTable::newBuiltIn()))),
             
-        // ];
-        // //Inserted seed values into hash table
-        // for (key, value) in builtIns {
-        //     symHash.insert(key.to_string(), value);
-        // }
+            (
+                "putbool",
+                HashItem::newProc(
+                    "putbool".to_string(),
+                    VarType::Bool,
+                    HashItemType::Procedure(
+                        Box::new(Stmt::StringLiteral("NONE".to_string(), "0".to_string())),
+                        vec!["boolparam".to_string()],  // Replace this with your desired string
+                        SymbolTable::newBuiltIn(),
+                    ),
+                ),
+            ),
+
+            (
+                "putinteger",
+                HashItem::newProc(
+                    "putinteger".to_string(),
+                    VarType::Bool,
+                    HashItemType::Procedure(
+                        Box::new(Stmt::StringLiteral("NONE".to_string(), "0".to_string())),
+                        vec!["intparam".to_string()],  // Replace this with your desired string
+                        SymbolTable::newBuiltIn(),
+                    ),
+                ),
+            ),
+
+            (
+                "putfloat",
+                HashItem::newProc(
+                    "putfloat".to_string(),
+                    VarType::Bool,
+                    HashItemType::Procedure(
+                        Box::new(Stmt::StringLiteral("NONE".to_string(), "0".to_string())),
+                        vec!["floatparam".to_string()],  // Replace this with your desired string
+                        SymbolTable::newBuiltIn(),
+                    ),
+                ),
+            ),
+
+            (
+                "putstring",
+                HashItem::newProc(
+                    "putstring".to_string(),
+                    VarType::Bool,
+                    HashItemType::Procedure(
+                        Box::new(Stmt::StringLiteral("NONE".to_string(), "0".to_string())),
+                        vec!["stringparam".to_string()],  // Replace this with your desired string
+                        SymbolTable::newBuiltIn(),
+                    ),
+                ),
+            ),
+
+            (
+                "sqrt",
+                HashItem::newProc(
+                    "sqrt".to_string(),
+                    VarType::Float,
+                    HashItemType::Procedure(
+                        Box::new(Stmt::StringLiteral("NONE".to_string(), "0".to_string())),
+                        vec!["intparam".to_string()],  // Replace this with your desired string
+                        SymbolTable::newBuiltIn(),
+                    ),
+                ),
+            ),
+        ];
+        //Inserted seed values into hash table
+        for (key, value) in builtIns {
+            symHash.insert(key.to_string(), value);
+        }
 
         // println!("symbol table created");
         // for (key, token) in &mut symHash {
@@ -6913,6 +6996,50 @@ impl SymbolTable{
         }
     }
     
+    pub fn newBuiltIn() -> SymbolTable {
+        //Creates the empty hash map
+        let mut symHash: HashMap<String, HashItem> = HashMap::new();
+
+        //THESE NEED TO BE WRITTEN TO INCLUDE ACTUAL STUFF
+        let mut builtInHash: HashMap<String, HashItem> = HashMap::new();
+        let builtInStmt = Stmt::StringLiteral(("NULL".to_string()), "0".to_string());
+        // let builtInParams = Vec::new();
+        //Seeding the symbol table with the built in functions
+        let builtIns = vec![
+            // ("getbool", HashItem::newProc("getbool".to_string(), VarType::Bool, HashItemType::Procedure(Box::new(Stmt::StringLiteral("NONE".to_string(), ("0".to_string()))), Vec::new(), SymbolTable::newEmpty()))),
+            ("boolparam", HashItem::newVar("boolparam".to_string(), VarType::Bool)),
+            ("intparam", HashItem::newVar("intparam".to_string(), VarType::Int)),
+            ("floatparam", HashItem::newVar("floatparam".to_string(), VarType::Float)),
+            ("stringparam", HashItem::newVar("stringparam".to_string(), VarType::Str)),
+
+
+        ];
+        //Inserted seed values into hash table
+        for (key, value) in builtIns {
+            symHash.insert(key.to_string(), value);
+        }
+
+        
+
+
+        SymbolTable{
+            symTab: symHash,
+        }
+    }
+
+    pub fn newEmpty() -> SymbolTable {
+        //Creates the empty hash map
+        let mut symHash: HashMap<String, HashItem> = HashMap::new();
+
+        
+
+        SymbolTable{
+            symTab: symHash,
+        }
+    }
+
+
+
     //Returns an option of if the item exists or not
     pub fn get(&mut self, itemName: &String) -> Option<&HashItem> {
         if self.symTab.contains_key(itemName) {
@@ -7051,14 +7178,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let programValid: bool = myChecker.checkProgram();
 
 
-    // if(!programValid){
-    //     println!("\n\nError in program");
-    //     return Ok(());
-    // } else {
-    //     println!("\n\nProgram is valid");
-    // }
+    if(!programValid){
+        println!("\n\nError in program");
+        return Ok(());
+    } else {
+        println!("\n\nProgram is valid");
+    }
 
-    // println!("test");
+    println!("test");
 
 
     Ok(())

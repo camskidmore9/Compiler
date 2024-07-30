@@ -1,0 +1,26 @@
+program MyTestProgram is
+
+variable tmp2 : float;
+variable out : bool;
+global variable x: integer;
+variable val: integer;
+variable sum: integer;
+variable test: bool;
+
+
+begin
+
+
+tmp2 := 1.5;
+val := 2;
+x := 5;
+
+sum := x + 1;
+
+out := sum > val;
+test := sum == 6;
+
+
+end program.
+
+

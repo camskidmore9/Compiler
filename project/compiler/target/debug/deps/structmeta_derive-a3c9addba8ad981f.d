@@ -1,0 +1,10 @@
+/home/cam/data/Compiler/final/compiler/target/debug/deps/libstructmeta_derive-a3c9addba8ad981f.so: /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/lib.rs /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/syn_utils.rs /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/parse.rs /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/struct_meta.rs /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/to_tokens.rs /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/to_tokens_attribute.rs
+
+/home/cam/data/Compiler/final/compiler/target/debug/deps/structmeta_derive-a3c9addba8ad981f.d: /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/lib.rs /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/syn_utils.rs /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/parse.rs /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/struct_meta.rs /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/to_tokens.rs /home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/to_tokens_attribute.rs
+
+/home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/lib.rs:
+/home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/syn_utils.rs:
+/home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/parse.rs:
+/home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/struct_meta.rs:
+/home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/to_tokens.rs:
+/home/cam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/structmeta-derive-0.3.0/src/to_tokens_attribute.rs:

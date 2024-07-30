@@ -1,0 +1,272 @@
+// The IR generator structure
+pub struct IRGen<'ctx> {
+    context: &'ctx Context,     //the llvm context
+    module: Module<'ctx>,       //the llvm module
+    builder: Builder<'ctx>,     //the llvm builder
+    programAst: Stmt,           //the programAst that will be run through to generate llvm IR
+    // programFunction: 
+    localVars: HashMap<String, PointerValue<'ctx>>,
+}
+
+impl<'ctx> IRGen<'ctx> {
+    // Initialize a new IRGen instance
+    pub fn new(context: &'ctx Context, programAst: Stmt) -> Self {
+        // let context = Context::create();
+        let module = context.create_module("my_module");
+        let builder = context.create_builder();
+        IRGen {
+            context,
+            module,
+            builder,
+            programAst,
+            localVars: HashMap::new(),
+        }
+    }
+
+    pub fn generateProgram(&mut self) -> Result<&Module<'ctx>, String>{
+        match self.programAst.clone(){
+            Stmt::Program(progName, headerBox, bodyBox, lineNum) => {
+                //Creates the main function
+                let i32Type = self.context.i32_type();
+                let mainType = i32Type.fn_type(&[], false);
+
+                let mainFunc = self.module.add_function("main", mainType, None);
+
+                println!("Program ast is a program");
+                //Goes through the header and adds each line to the module
+                let header = headerBox.clone();
+                let mut progHeader = *header;
+                // Check if the variable is a Block and iterate through it
+                if let Stmt::Block(ref instrs, lineNum) = progHeader.clone() {
+                    for instr in instrs {
+                        self.compileStmt(instr.clone(), mainFunc);
+                    }
+                } else {
+                    println!("Problem with AST: header must be a Block");
+                }
+
+                println!("Header processed");
+
+                //Creates the entrypoint at the main function
+                let mainBlock = self.context.append_basic_block(mainFunc, "entry");
+                self.builder.position_at_end(mainBlock);
+                println!("Created entry point");
+
+                println!("Time to go through body");
+                //Goes through the body and adds each line to the module
+                let newBodyBox = bodyBox.clone();
+                let mut body = *newBodyBox;
+                // Check if the variable is a Block and iterate through it
+                if let Stmt::Block(ref instrs, lineNum) = body.clone() {
+                    for instr in instrs {
+                        self.compileStmt(instr.clone(), mainFunc);
+                    }
+                } else {
+                    println!("Problem with AST: header must be a Block");
+                }
+                let mainRet = i32Type.const_int(1, false);
+                let _ = self.builder.build_return(Some(&mainRet));
+            }
+            _ => {
+                let errMsg = format!("ProgramAst must be a Program Stmt");
+                return Err(errMsg);
+            }
+        }
+        
+        // if let (Stmt::Program(progName, head, body, lineNum) = self.programAst.clone()) {
+        //     println!("program good");
+        // }
+        
+        return Ok(&self.module);
+    }
+
+    fn compileStmt(&mut self, stmt: Stmt, func: FunctionValue){
+        match stmt.clone(){
+            //For global variable declarations
+            Stmt::GlobVarDecl(varName, varType, lineNum) => {
+                match varType{
+                    
+                    VarType::Bool => {
+                        let boolType = self.context.bool_type();
+                        let boolName = varName.clone();
+                        let globBool = self.module.add_global(boolType.clone(), None, &boolName);
+                        return;
+                    }
+                    VarType::Float => {
+                        let varType = self.context.f64_type();
+                        let globName = varName.clone();
+                        let globVar = self.module.add_global(varType.clone(), None, &globName);
+                        return;
+                    }
+                    VarType::Int => {
+                        let varType = self.context.i64_type();
+                        let globName = varName.clone();
+                        let globVar = self.module.add_global(varType.clone(), None, &globName);
+                        return;
+                    }
+                    VarType::Str => {
+                        let maxStringLen = 64 as u32 + 1;
+                        let i8Type = self.context.i8_type();
+                        let arrayType = i8Type.array_type(maxStringLen);
+                        // let stringVal: Vec<IntValue> = 
+
+                        
+                        // let varType = self.context.f64_type();
+                        let globName = varName.clone();
+                        let globVar = self.module.add_global(arrayType.clone(), None, &globName);
+                        return;
+                    }
+                    VarType::IntArray(size) => {
+                        let arrSize = size as u32;
+                        let i32Type = self.context.i32_type();
+                        let arrayType = i32Type.array_type(arrSize);
+                        let globName = varName.clone();
+
+
+                        //Adds to the global variables
+                        let globVar = self.module.add_global(arrayType.clone(), None, &globName);
+
+                        
+                    }
+                }
+            }
+            Stmt::Assign(varName, newValue, lineNum) => {
+                
+                
+                println!("Variable assignment NEEDS WRITTEn");
+                return;
+            }
+            Stmt::Block(blockStmt, lineNum) => {
+                println!("block stmt NEEDS WRITTEn");
+                return;
+            }
+            Stmt::Error(err, lineNum) => {
+                println!("error stmt NEEDS WRITTEn");
+                return;
+            }
+            Stmt::Expr(exprStmt, lineNum) => {
+                println!("expr stmt NEEDS WRITTEn");
+                return;
+            }
+            Stmt::For(assignment, condition, body, lineNum) => {
+                println!("for stmt NEEDS WRITTEn");
+                return;
+            }
+            Stmt::If(condition, body, elseStmt, lineNum) => {
+                println!("if statement NEEDS WRITTEn");
+                return;
+            }
+            Stmt::ProcDecl(procType, procName, params, headerBox, bodyBox, lineNum) => {
+                println!("procedure declaration NEEDS WRITTEn");
+                return;
+            }
+            Stmt::StringLiteral(str, lineNum) => {
+                println!("StringLiteral Stmt, this should never happe");
+                return;
+            }
+            Stmt::VarDecl(varName, varType, lineNum) => {
+                println!("local assignment NEEDS WRITTEn");
+                return;
+            }
+            Stmt::Return(valueExpr, lineNum) => {
+                println!("return stmt NEEDS WRITTEn");
+                return;
+            }
+            Stmt::Program(name, headerBox, bodyBox, lineNum) => {
+                println!("Program Stmt, this should never happen");
+                return;
+            }
+            
+        }
+        
+    }
+
+    fn generate_expr(&mut self, expr: Expr) -> BasicValueEnum<'ctx> {
+        match expr {
+            //Literals
+            Expr::IntLiteral(value) => self.context.i32_type().const_int(value as u64, false).into(),
+            Expr::FloatLiteral(value) => self.context.f64_type().const_float(value).into(),
+            Expr::StringLiteral(string) => {
+                // let byte_vec = string.as_bytes().to_vec();
+                // let max_len = 65 as u32;
+                // let i8_type = self.context.i8_type(); // Define the element type (8-bit integer for characters)
+                // let array_type = i8_type.array_type(max_len); // Define the array type with the maximum length
+
+                
+
+                // return basic_value_enum;
+                println!("string NEEDS WRITTEN");
+                let i32_type = self.context.i32_type();
+                let intValue = i32_type.const_int(0, false);                
+                return BasicValueEnum::IntValue(intValue);
+
+            }
+            Expr::IntArrayLiteral(size, values) => {
+                // let byte_vec = string.as_bytes().to_vec();
+                // let max_len = 65 as u32;
+                // let i8_type = self.context.i8_type(); // Define the element type (8-bit integer for characters)
+                // let array_type = i8_type.array_type(max_len); // Define the array type with the maximum length
+
+                
+
+                // return basic_value_enum;
+                println!("intarray NEEDS WRITTEN");
+                let i32_type = self.context.i32_type();
+                let intValue = i32_type.const_int(0, false);                
+                return BasicValueEnum::IntValue(intValue);
+            }
+
+            Expr::VarRef(var_name) => {
+                // Handling variable references (you need to retrieve the value)
+                println!("Variable reference needs implementation");
+                unimplemented!()
+            }
+            Expr::ArthOp(op1, operator, op2) => {
+                let left_val = self.generate_expr(*op1).into_int_value();
+                let right_val = self.generate_expr(*op2).into_int_value();
+
+                match operator {
+                    Operator::Add => self.builder.build_int_add(left_val, right_val, "tmp_add").into(),
+                    Operator::Sub => self.builder.build_int_sub(left_val, right_val, "tmp_sub").into(),
+                    Operator::Mul => self.builder.build_int_mul(left_val, right_val, "tmp_mul").into(),
+                    Operator::Div => self.builder.build_int_signed_div(left_val, right_val, "tmp_div").into(),
+                }
+            }
+            Expr::ArrayRef(varName, index) => {
+                println!("ArrayRef NEEDS WRITTEN");
+                let i32_type = self.context.i32_type();
+                let intValue = i32_type.const_int(0, false);                
+                return BasicValueEnum::IntValue(intValue);
+            }
+            Expr::BoolLiteral(bool) => {
+                println!("bool NEEDS WRITTEN");
+                let i32_type = self.context.i32_type();
+                let intValue = i32_type.const_int(0, false);                
+                return BasicValueEnum::IntValue(intValue);
+            }
+            Expr::
+        }
+    }
+    // fn generateExpr(&self, expr: &Expr) -> BasicValueEnum<'ctx> {
+    //     match expr {
+    //         Expr::IntLiteral(value) => self.context.i32_type().const_int(*value as u64, false).into(),
+    //         Expr::FloatLiteral(value) => self.context.f32_type().const_float(*value as f64).into(),
+    //         Expr::VarRef(_) => {
+    //             // Handle variable reference
+    //             unimplemented!()
+    //         }
+    //         Expr::ArthOp(left, op, right) => {
+    //             let left_val = self.generateExpr(left);
+    //             let right_val = self.generateExpr(right);
+    //             match op {
+    //                 Operator::Add => self.builder.build_int_add(left_val.into_int_value(), right_val.into_int_value(), "tmp_add").into(),
+    //                 Operator::Sub => self.builder.build_int_sub(left_val.into_int_value(), right_val.into_int_value(), "tmp_sub").into(),
+    //                 _ => unimplemented!(),
+    //             }
+    //         }
+    //         _ => unimplemented!(),
+    //     }
+    // }
+}
+
+

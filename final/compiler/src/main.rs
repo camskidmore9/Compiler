@@ -19,17 +19,9 @@ mod models;
 use {
     crate::models::{lexer::Lexer, parser::{Expr, Parser, *}, typechecker::{
         SymbolTable, SyntaxChecker
-    }}, anyhow::Result, inkwell::{builder::Builder, context::Context, module::Module, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType}, values::*, AddressSpace, FloatPredicate, IntPredicate, OptimizationLevel}, parse_display::Display, std::{
-        collections::HashMap, env, fmt, fs::{
-            read_to_string, File
-        }, 
-        hash::Hash, 
-        io::{
-            prelude::*, BufRead, BufReader, Read
-        }, 
-        path::Path, 
-        rc::Rc
-    }, unicode_segmentation::UnicodeSegmentation, utf8_chars::BufReadCharsExt
+    }}, anyhow::Result, inkwell::{builder::Builder, context::Context, module::Module, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum}, values::*, AddressSpace, FloatPredicate, IntPredicate}, parse_display::Display, std::{
+        collections::HashMap, env::{self, args}, ffi::CString, fmt, rc::Rc
+    }
 };
 
 ///////////////////////// Setup /////////////////////////
@@ -177,8 +169,6 @@ impl fmt::Display for tokenTypeEnum {
 ///////////////////////// /Setup /////////////////////////
 
 
-
-
 // The IR generator structure
 pub struct Compiler<'ctx> {
     context: &'ctx Context,     //the llvm context
@@ -203,6 +193,7 @@ impl<'ctx> Compiler<'ctx> {
     ) -> Compiler<'ctx> {
         let mut module = context.create_module("my_module");
         let mut builder = context.create_builder();
+
         Compiler {
             programAst,
             scope: 0,
@@ -218,6 +209,20 @@ impl<'ctx> Compiler<'ctx> {
     pub fn compileProgram(&mut self) -> Result<&Module<'ctx>, String>{
         match self.programAst.clone(){
             Stmt::Program(progName, headerBox, bodyBox, lineNum) => {
+                //Adds the built ints
+                self.addScanf();
+                self.addPrintf();
+                self.declareGetInt();
+                self.declareGetBool();
+                self.declareGetFloat();
+                self.declareGetString();
+                self.declarePutBool();
+                self.declarePutFloat();
+                self.declarePutInt();
+                self.declarePutString();
+                // self.declareSqrt();
+                
+                
                 //Creates the main function
                 let i32Type = self.context.i32_type();
                 let mainType = i32Type.fn_type(&[], false);
@@ -2728,7 +2733,7 @@ impl<'ctx> Compiler<'ctx> {
                         function = fun.clone();
                     }
                     None => {
-                        let errMsg = format!("Function not found");
+                        let errMsg = format!("Function: {} not found", procName.clone());
                         return Err(errMsg);
                     }
                 }
@@ -2771,19 +2776,579 @@ impl<'ctx> Compiler<'ctx> {
                     }
                 }
 
+           
             }
-            
-            _ => {
-                println!("Not implemented expression");
-                let val = 25;
-                let intType = self.context.i64_type().clone();
-                let intVal = intType.const_int(val, false);
-                return Ok(BasicValueEnum::IntValue(intVal));
-            },
         }
     
     
     
+    }
+    
+    //Defines the built ins
+    fn declareGetInt(&mut self) {
+        let procName = "getint";
+        //Creates the local variable hash table
+        let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
+        
+        //Creates the local builder
+        let procBuilder = self.context.create_builder();
+        
+        //Creates a vec for the param types
+        let mut paramTypes: Vec<BasicTypeEnum> = Vec::new();
+        
+        //Defines the return type
+        let intType = self.context.i32_type().clone();
+        
+        let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice = &paramTypesSlice[..];
+    
+        let funcType = intType.fn_type(paramTypesSlice, false);
+        let procFunVal = self.module.add_function(&procName, funcType.clone(), None);
+    
+        
+        let builder = self.context.create_builder();
+        let entry = self.context.append_basic_block(procFunVal, "entry");
+        builder.position_at_end(entry);
+
+        let scanf = self.module.get_function("scanf").unwrap();
+        let formatStr = CString::new("%d").unwrap();
+        let formatStr = self.context.const_string(formatStr.as_bytes(), false);
+        let formatPtrCheck = builder.build_alloca(formatStr.get_type(), "format");
+        let mut stringPtr: PointerValue;
+        match formatPtrCheck{
+            Ok(val) => {
+                stringPtr = val.clone();
+            }
+            Err(errMsg) => {
+                println!("Error allocating string in getInt");
+                return;
+            }
+        }
+        let _ = builder.build_store(stringPtr, formatStr);
+
+        //Allocates space for the int
+        let intValCheck = builder.build_alloca(intType.clone(), "int_val");
+        let int_val: PointerValue;
+        match intValCheck{
+            Ok(val) =>{
+                int_val = val.clone();
+            }
+            Err(err) => {
+                println!("Error allocating space for int in getint");
+                return;
+            }
+        }
+        let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[stringPtr.into()];
+        let call = builder.build_call(scanf, &args, "scanf_call");
+
+        //Returns the loaded val
+        let loaded_val = builder.build_load(int_val, "loaded_val");
+        match loaded_val{
+            Ok(val) => {
+                match val {
+                    BasicValueEnum::IntValue(int_val) => {
+                        let _ = procBuilder.build_return(Some(&int_val));
+                    }
+                    _ => {
+                        println!("getBool can only take bool");
+                        return;
+                    }
+                }
+                return;
+            }
+            Err(err) => {
+                println!("error loading int value in getint");
+                return;
+            }
+        }
+    
+        
+    }
+    fn declareGetBool(&mut self) {
+        let procName = "getbool";
+        //Creates the local variable hash table
+        let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
+        
+        //Creates the local builder
+        let procBuilder = self.context.create_builder();
+        
+        //Creates a vec for the param types
+        let mut paramTypes: Vec<BasicTypeEnum> = Vec::new();
+        
+        //Defines the return type
+        let boolType = self.context.bool_type().clone();
+        
+        let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice = &paramTypesSlice[..];
+    
+        let funcType = boolType.fn_type(paramTypesSlice, false);
+        let procFunVal = self.module.add_function(&procName, funcType.clone(), None);
+    
+        
+        let builder = self.context.create_builder();
+        let entry = self.context.append_basic_block(procFunVal, "entry");
+        builder.position_at_end(entry);
+
+        let scanf = self.module.get_function("scanf").unwrap();
+        let formatStr = CString::new("%d").unwrap();
+        let formatStr = self.context.const_string(formatStr.as_bytes(), false);
+        let formatPtrCheck = builder.build_alloca(formatStr.get_type(), "format");
+        let mut stringPtr: PointerValue;
+        match formatPtrCheck{
+            Ok(val) => {
+                stringPtr = val.clone();
+            }
+            Err(errMsg) => {
+                println!("Error allocating string in getInt");
+                return;
+            }
+        }
+        let _ = builder.build_store(stringPtr, formatStr);
+
+        //Allocates space for the int
+        let intValCheck = builder.build_alloca(boolType, "boolVal");
+        let int_val: PointerValue;
+        match intValCheck{
+            Ok(val) =>{
+                int_val = val.clone();
+            }
+            Err(err) => {
+                println!("Error allocating space for int in getbool");
+                return;
+            }
+        }
+        let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[stringPtr.into()];
+        let call = builder.build_call(scanf, &args, "scanf_call");
+
+        //Returns the loaded val
+        let loaded_val = builder.build_load(int_val, "loaded_val");
+        match loaded_val{
+            Ok(val) => {
+                match val {
+                    BasicValueEnum::IntValue(int_val) => {
+                        let _ = procBuilder.build_return(Some(&int_val));
+                    }
+                    _ => {
+                        println!("getBool can only take bool");
+                        return;
+                    }
+                }
+                return;
+            }
+            Err(err) => {
+                println!("error loading int value in getbool");
+                return;
+            }
+        }
+    
+        
+    }
+    fn declareGetFloat(&mut self) {
+        let procName = "getfloat";
+        //Creates the local variable hash table
+        let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
+        
+        //Creates the local builder
+        let procBuilder = self.context.create_builder();
+        
+        //Creates a vec for the param types
+        let mut paramTypes: Vec<BasicTypeEnum> = Vec::new();
+        
+        //Defines the return type
+        let floatType = self.context.f32_type().clone();
+        
+        let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice = &paramTypesSlice[..];
+    
+        let funcType = floatType.fn_type(paramTypesSlice, false);
+        let procFunVal = self.module.add_function(&procName, funcType.clone(), None);
+    
+        
+        let builder = self.context.create_builder();
+        let entry = self.context.append_basic_block(procFunVal, "entry");
+        builder.position_at_end(entry);
+
+        let scanf = self.module.get_function("scanf").unwrap();
+        let formatStr = CString::new("%d").unwrap();
+        let formatStr = self.context.const_string(formatStr.as_bytes(), false);
+        let formatPtrCheck = builder.build_alloca(formatStr.get_type(), "format");
+        let mut stringPtr: PointerValue;
+        match formatPtrCheck{
+            Ok(val) => {
+                stringPtr = val.clone();
+            }
+            Err(errMsg) => {
+                println!("Error allocating string in getInt");
+                return;
+            }
+        }
+        let _ = builder.build_store(stringPtr, formatStr);
+
+        //Allocates space for the int
+        let intValCheck = builder.build_alloca(floatType, "floatVal");
+        let int_val: PointerValue;
+        match intValCheck{
+            Ok(val) =>{
+                int_val = val.clone();
+            }
+            Err(err) => {
+                println!("Error allocating space for float in getfloat");
+                return;
+            }
+        }
+        let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[stringPtr.into()];
+        let call = builder.build_call(scanf, &args, "scanf_call");
+
+        //Returns the loaded val
+        let loaded_val = builder.build_load(int_val, "loaded_val");
+        match loaded_val{
+            Ok(val) => {
+                match val {
+                    BasicValueEnum::FloatValue(int_val) => {
+                        let _ = procBuilder.build_return(Some(&int_val));
+                    }
+                    _ => {
+                        println!("getFloat can only take float");
+                        return;
+                    }
+                }
+                return;
+            }
+            Err(err) => {
+                println!("error loading int value in getFloat");
+                return;
+            }
+        }
+    
+        
+    }
+    fn declareGetString(&mut self) {
+        // Define the function
+        let proc_name = "getstring";
+        // Create the local variable hash table
+        let mut proc_loc_table: HashMap<String, PointerValue> = HashMap::new();
+
+        // Create the local builder
+        let procBuilder = self.context.create_builder();
+
+        // Create a vec for the param types (empty in this case, as no parameters are used)
+        let paramTypes: Vec<BasicTypeEnum> = Vec::new();
+
+        // Define the return type
+        let charType = self.context.i8_type(); // `i8` for chars
+        let pointer_type = charType.array_type(20);
+
+        let return_type = pointer_type;
+
+        // Create function type
+        let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice = &paramTypesSlice[..];
+
+
+        let funcType = return_type.fn_type(&paramTypesSlice, false);
+        let procFunVal = self.module.add_function(proc_name, funcType.clone(), None);
+
+        // Create entry block and position the builder
+        let entry = self.context.append_basic_block(procFunVal, "entry");
+        procBuilder.position_at_end(entry);
+
+        // Prepare for the scanf call
+        let scanf = self.module.get_function("scanf").unwrap();
+        let formatStr = CString::new("%s").unwrap(); // Use %s for strings
+        let formatStr = self.context.const_string(formatStr.as_bytes(), false);
+        let formatPtrCheck = procBuilder.build_alloca(formatStr.get_type(), "format");
+        let formatPtr:PointerValue;
+        match formatPtrCheck{
+            Ok(val) => {
+                formatPtr = val.clone();
+            }
+            Err(err) => {
+                println!("error in allocating string space");
+                return;
+            }
+        }
+        let _ = procBuilder.build_store(formatPtr, formatStr);
+
+        // Allocate space for the string (with a fixed-size buffer)
+        let buffer_size = 256; // Or whatever size is appropriate
+        let buffer = self.context.i8_type().array_type(buffer_size).const_zero();
+        let bufferPtrCheck = procBuilder.build_alloca(buffer.get_type(), "buffer");
+        let mut buffer_ptr: PointerValue;
+        match bufferPtrCheck{
+            Ok(val) => {
+                buffer_ptr = val.clone();
+            }
+            Err(err) => {
+                println!("error in getstring");
+                return;
+            }
+        }
+        let _ = procBuilder.build_store(buffer_ptr, buffer);
+
+        // Build the scanf call
+        let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[formatPtr.into()];
+        let _ = procBuilder.build_call(scanf, &args, "scanf_call");
+
+        // Load the string value
+        let loadedValCheck = procBuilder.build_load(buffer_ptr, "loaded_val");
+       
+       
+
+        // Return the pointer to the string
+        let return_value = BasicValueEnum::PointerValue(buffer_ptr.clone());
+        let _ = procBuilder.build_return(Some(&return_value));
+    
+        
+    }
+    
+    fn declarePutInt(&mut self) {
+        // Define the function
+        let proc_name = "putinteger";
+        // Create the local variable hash table
+        let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
+
+        // Create the local builder
+        let procBuilder = self.context.create_builder();
+
+        // Create a vec for the param types
+        let paramTypes: Vec<BasicTypeEnum> = vec![self.context.i32_type().into()];
+
+        // Define the return type (boolean)
+        let boolType = self.context.bool_type();
+        let returnType = boolType;
+
+        // Create function type
+        // let param_types_slice: Vec<BasicTypeEnum> = param_types.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice = &paramTypesSlice[..];
+
+
+        let funcType = returnType.fn_type(&paramTypesSlice, false);
+        let procFunVal = self.module.add_function(proc_name, funcType.clone(), None);
+
+        // Create entry block and position the builder
+        let entry = self.context.append_basic_block(procFunVal, "entry");
+        procBuilder.position_at_end(entry);
+
+        // Prepare for the printf call
+        let printf = self.module.get_function("printf").unwrap();
+        let formatStr = CString::new("%d\n").unwrap(); // Format string for integer
+        let formatStr = self.context.const_string(formatStr.as_bytes(), false);
+        let formatPtrCheck = procBuilder.build_alloca(formatStr.get_type(), "format");
+        let formatPtr:PointerValue;
+        match formatPtrCheck{
+            Ok(val) => {
+                formatPtr = val.clone();
+            }
+            Err(err) => {
+                println!("error in allocating string space");
+                return;
+            }
+        }
+        let _ = procBuilder.build_store(formatPtr, formatStr);
+
+        // Get the parameter (integer value) passed to the function
+        let int_param = procFunVal.get_nth_param(0).unwrap().into_int_value();
+
+        // Build the printf call
+        let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[formatPtr.into()];
+        let _ = procBuilder.build_call(printf, &args, "printf_call");
+
+        // Return a boolean true (indicating success)
+        let true_val = self.context.bool_type().const_int(1, false);
+        let _ = procBuilder.build_return(Some(&true_val));
+    }
+    fn declarePutBool(&mut self) {
+        // Define the function
+        let proc_name = "putinteger";
+        // Create the local variable hash table
+        let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
+
+        // Create the local builder
+        let procBuilder = self.context.create_builder();
+
+        // Create a vec for the param types
+        let paramTypes: Vec<BasicTypeEnum> = vec![self.context.i32_type().into()];
+
+        // Define the return type (boolean)
+        let boolType = self.context.bool_type();
+        let returnType = boolType;
+
+        // Create function type
+        // let param_types_slice: Vec<BasicTypeEnum> = param_types.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice = &paramTypesSlice[..];
+
+
+        let funcType = returnType.fn_type(&paramTypesSlice, false);
+        let procFunVal = self.module.add_function(proc_name, funcType.clone(), None);
+
+        // Create entry block and position the builder
+        let entry = self.context.append_basic_block(procFunVal, "entry");
+        procBuilder.position_at_end(entry);
+
+        // Prepare for the printf call
+        let printf = self.module.get_function("printf").unwrap();
+        let formatStr = CString::new("%d\n").unwrap(); // Format string for integer
+        let formatStr = self.context.const_string(formatStr.as_bytes(), false);
+        let formatPtrCheck = procBuilder.build_alloca(formatStr.get_type(), "format");
+        let formatPtr:PointerValue;
+        match formatPtrCheck{
+            Ok(val) => {
+                formatPtr = val.clone();
+            }
+            Err(err) => {
+                println!("error in allocating string space");
+                return;
+            }
+        }
+        
+        let _ = procBuilder.build_store(formatPtr, formatStr);
+
+        // Get the parameter (integer value) passed to the function
+        let int_param = procFunVal.get_nth_param(0).unwrap().into_int_value();
+
+        // Build the printf call
+        let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[formatPtr.into()];
+        let _ = procBuilder.build_call(printf, &args, "printf_call");
+
+        // Return a boolean true (indicating success)
+        let true_val = self.context.bool_type().const_int(1, false);
+        let _ = procBuilder.build_return(Some(&true_val));
+    }
+    fn declarePutFloat(&mut self) {
+        // Define the function
+        let proc_name = "putFloat";
+        // Create the local variable hash table
+        let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
+
+        // Create the local builder
+        let procBuilder = self.context.create_builder();
+
+        // Create a vec for the param types
+        let paramTypes: Vec<BasicTypeEnum> = vec![self.context.i32_type().into()];
+
+        // Define the return type (boolean)
+        let boolType = self.context.bool_type();
+        let returnType = boolType;
+
+        // Create function type
+        // let param_types_slice: Vec<BasicTypeEnum> = param_types.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice = &paramTypesSlice[..];
+
+
+        let funcType = returnType.fn_type(&paramTypesSlice, false);
+        let procFunVal = self.module.add_function(proc_name, funcType.clone(), None);
+
+        // Create entry block and position the builder
+        let entry = self.context.append_basic_block(procFunVal, "entry");
+        procBuilder.position_at_end(entry);
+
+        // Prepare for the printf call
+        let printf = self.module.get_function("printf").unwrap();
+        let formatStr = CString::new("%d\n").unwrap(); // Format string for integer
+        let formatStr = self.context.const_string(formatStr.as_bytes(), false);
+        let formatPtrCheck = procBuilder.build_alloca(formatStr.get_type(), "format");
+        let formatPtr:PointerValue;
+        match formatPtrCheck{
+            Ok(val) => {
+                formatPtr = val.clone();
+            }
+            Err(err) => {
+                println!("error in allocating string space");
+                return;
+            }
+        }
+        
+        let _ = procBuilder.build_store(formatPtr, formatStr);
+
+        // Get the parameter (integer value) passed to the function
+        let int_param = procFunVal.get_nth_param(0).unwrap().into_int_value();
+
+        // Build the printf call
+        let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[formatPtr.into()];
+        let _ = procBuilder.build_call(printf, &args, "printf_call");
+
+        // Return a boolean true (indicating success)
+        let true_val = self.context.bool_type().const_int(1, false);
+        let _ = procBuilder.build_return(Some(&true_val));
+    }
+    fn declarePutString(&mut self) {
+        // Define the function
+        let proc_name = "putstring";
+        // Create the local variable hash table
+        let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
+
+        // Create the local builder
+        let procBuilder = self.context.create_builder();
+
+        // Create a vec for the param types
+        let paramTypes: Vec<BasicTypeEnum> = vec![self.context.i32_type().into()];
+
+        // Define the return type (boolean)
+        let boolType = self.context.bool_type();
+        let returnType = boolType;
+
+        // Create function type
+        // let param_types_slice: Vec<BasicTypeEnum> = param_types.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
+        let paramTypesSlice = &paramTypesSlice[..];
+
+
+        let funcType = returnType.fn_type(&paramTypesSlice, false);
+        let procFunVal = self.module.add_function(proc_name, funcType.clone(), None);
+
+        // Create entry block and position the builder
+        let entry = self.context.append_basic_block(procFunVal, "entry");
+        procBuilder.position_at_end(entry);
+
+        // Prepare for the printf call
+        let printf = self.module.get_function("printf").unwrap();
+        let formatStr = CString::new("%d\n").unwrap(); // Format string for integer
+        let formatStr = self.context.const_string(formatStr.as_bytes(), false);
+        let formatPtrCheck = procBuilder.build_alloca(formatStr.get_type(), "format");
+        let formatPtr:PointerValue;
+        match formatPtrCheck{
+            Ok(val) => {
+                formatPtr = val.clone();
+            }
+            Err(err) => {
+                println!("error in allocating string space");
+                return;
+            }
+        }
+        
+        let _ = procBuilder.build_store(formatPtr, formatStr);
+
+        // Get the parameter (integer value) passed to the function
+        let int_param = procFunVal.get_nth_param(0).unwrap().into_int_value();
+
+        // Build the printf call
+        let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[formatPtr.into()];
+        let _ = procBuilder.build_call(printf, &args, "printf_call");
+
+        // Return a boolean true (indicating success)
+        let true_val = self.context.bool_type().const_int(1, false);
+        let _ = procBuilder.build_return(Some(&true_val));
+    }
+   
+    
+    
+
+    fn addScanf(&mut self) {
+        let i32Type = self.context.i32_type();
+        let stringType = self.context.i8_type();
+        let strPtrType = BasicMetadataTypeEnum::IntType(stringType);
+        let scanfType = i32Type.fn_type(&[strPtrType], true);
+        self.module.add_function("scanf", scanfType, None);
+    }
+    fn addPrintf(&mut self) {
+        let i32Type = self.context.i32_type();
+        let stringType = self.context.i8_type();
+        let strPtrType = BasicMetadataTypeEnum::IntType(stringType);
+        let scanfType = i32Type.fn_type(&[strPtrType], true);
+        self.module.add_function("printf", scanfType, None);
     }
     
     

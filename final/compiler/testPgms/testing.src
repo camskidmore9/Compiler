@@ -13,21 +13,16 @@ variable jake: integer;
 variable ryan: integer[5];
 variable zach: integer;
 
-procedure if_proc : integer()
-    variable declaration : integer;
-    begin
-    if(true) then jake := jake + 1;
-    else zach := zach + RYAN[2];
-    end if;
-    return (0);
-end procedure;
+
 
 begin
 
-x := if_proc();
+//x := if_proc();
 
 
 max := 10;
+
+putInteger(5);
 
 end program.
 

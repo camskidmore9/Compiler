@@ -110,7 +110,6 @@ impl Parser{
 
         //Checks if the first value is an array reference or not
         if(curStmt[1].tt == tokenTypeEnum::L_BRACKET) {
-            // println!("Array reference found");
             let varName = curStmt[0].tokenString.clone();
             // let varRef = Expr::VarRef((varName));
 
@@ -160,9 +159,18 @@ impl Parser{
             //Creates the necessary structure for the array reference Stmt
             let indexBox = Box::new(indexExpr);
             firstOp = Expr::ArrayRef((varName), (indexBox));
-
             //Removes the array reference so there is just the ] left
-            curStmt.drain(0..brackInd);
+            let modifier: usize;
+            println!("Next string after array ref {}", curStmt[brackInd + 1].tokenString.clone());
+            if(curStmt[brackInd + 1].tt.clone() == tokenTypeEnum::SEMICOLON){
+                modifier = 1;
+            } else {
+                modifier = 0;
+            }
+            
+            curStmt.drain(0..brackInd + modifier);
+            println!("Next string after array ref {}", curStmt[0].tokenString.clone());
+
         } 
         //If the first token in the expr list is a variable
         else if (curStmt[0].tg == tokenGroup::VARIABLE){
@@ -346,6 +354,7 @@ impl Parser{
                 },
                 Err(reporting) => {
                     // println!("Error parsing op on line {}: {:?}",curStmt[1].lineNum, reporting);
+                    println!("BAD OP {}", curStmt[1].tokenString.clone());
                     let errMsg = format!("Error parsing operator on line {}: {:?}", curStmt[1].lineNum.to_string(), self.reports);
                     return Err(errMsg);
                 },
@@ -907,7 +916,6 @@ impl Parser{
                 //Checks if the first value is an array reference or not
                 if(curStmt[1].tt == tokenTypeEnum::L_BRACKET) {
                     let varName = curStmt[0].tokenString.clone();
-
                     //Finds the end of the brackets
                     let mut brackInd = 0;
                     let mut nextIndToken = &curStmt[brackInd];

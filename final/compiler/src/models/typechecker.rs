@@ -919,10 +919,53 @@ impl<'a> SyntaxChecker<'a> {
                 }
                 
             }
-            //Needs written
             Expr::ArrayRef(varName, indexExpr) => {
-                println!("ARRAY REFERENCE EXPRESSION CHECK, needs written");
-                return true;
+                let existVar: VarType;
+                let checkLocVar = self.localTable.get(&varName.clone());
+                match checkLocVar{
+                    Some(var) => {
+                        if var.hashType != HashItemType::Variable {
+                            println!("{} is not a variable", varName.clone());
+                            return false;
+                        } else {
+                            existVar = var.clone().getType().clone();
+                        }
+                    }
+                    None => {
+                        let checkGlobVar = self.globalTable.get(&varName.clone());
+                            match checkGlobVar{
+                                Some(var) => {
+                                    if var.hashType != HashItemType::Variable {
+                                        println!("{} is not a variable", varName.clone());
+                                        return false;
+                                    } else {
+                                        existVar = var.clone().getType().clone();
+                                    }
+                                }
+                                None => {
+                                    println!("Variable {} is not defined", varName.clone());
+                                    return false;
+                                }
+                            }
+                    }
+                }
+                
+                match existVar{
+                    VarType::IntArray(size) => {
+                        let checkedExpr =  self.checkExpr(*indexExpr);
+                        if checkedExpr {
+                            return true;
+                        }
+                        else {
+                            println!("Error with array index");
+                            return false;
+                        }
+                    }
+                    _ => {
+                        println!("Variable {} is not an array", varName.clone());
+                        return false;
+                    }
+                }                
             }
             
             //Operations
@@ -1807,7 +1850,7 @@ impl<'a> SyntaxChecker<'a> {
                                             assignType = var;
                                         }
                                         None => {
-                                            let checkGlobVar = self.localTable.getType(&assignName.clone());
+                                            let checkGlobVar = self.globalTable.getType(&assignName.clone());
                                             match checkGlobVar{
                                                 Some(var) => {
                                                     assignType = var
@@ -1830,6 +1873,9 @@ impl<'a> SyntaxChecker<'a> {
                                             return true;
                                         }
                                         VarType::Float =>{
+                                            return true;
+                                        }
+                                        VarType::IntArray(size) => {
                                             return true;
                                         }
                                         _ => {

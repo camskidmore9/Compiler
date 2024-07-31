@@ -2719,7 +2719,59 @@ impl<'ctx> Compiler<'ctx> {
                 
             }
         
-        
+            Expr::ProcRef(procName, params) => {
+                //Get the function
+                let mut function: FunctionValue;
+                let functionCheck = self.module.get_function(&procName.clone());
+                match functionCheck{
+                    Some(fun) => {
+                        function = fun.clone();
+                    }
+                    None => {
+                        let errMsg = format!("Function not found");
+                        return Err(errMsg);
+                    }
+                }
+
+                //Compile arguments
+                let mut compiledParams: Vec<BasicValueEnum> = Vec::new();
+                if let Some(paramExprs) = params.clone(){
+                    for param in paramExprs{
+                        let paramCheck = self.compileExpr(&param.clone(), builder, localTable);
+                        match paramCheck{
+                            Ok(val) => {
+                                compiledParams.push(val.clone());
+                            }
+                            Err(err) => {
+                                let errMsg = format!("Error parsing function call param: {}", err.clone());
+                                return Err(errMsg.clone());
+                            }
+                        }
+                    }
+                }
+
+                //COnvert params to correct type
+                let metadata_values: Vec<BasicMetadataValueEnum> = compiledParams.into_iter()
+                    .map(|val| val.into())
+                    .collect();
+
+                // Convert `Vec<BasicMetadataValueEnum>` to a slice
+                let parmVals = metadata_values.as_slice();
+
+                //Create the call
+                let procCallRes = builder.build_call(function, parmVals, "callProc");
+                match procCallRes{
+                    Ok(val) => {
+                        let retVal = val.try_as_basic_value().left().unwrap();
+                        return Ok(retVal.clone());
+                    }
+                    Err(err) => {
+                        let errMsg = format!("Error calling procedure");
+                        return Err(errMsg);
+                    }
+                }
+
+            }
             
             _ => {
                 println!("Not implemented expression");

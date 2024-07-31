@@ -24,6 +24,8 @@ end procedure;
 
 begin
 
+x := if_proc();
+
 
 max := 10;
 

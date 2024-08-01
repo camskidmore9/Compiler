@@ -1,28 +1,28 @@
 program MyTestProgram is
 
-variable tmp2 : float;
+variable value : integer;
+variable tmp2 : float;  //this variable will be hidden by the declaration in Fib
 variable out : bool;
-global variable x: integer;
-variable val: integer;
-variable sum: integer;
-variable test: bool;
-variable test2: integer[15];
+variable floatVal: float;
 variable i: integer;
-variable max: integer;
-variable jake: integer;
-variable ryan: integer[5];
-variable zach: integer;
+
 
 
 
 begin
 
-//x := if_proc();
+i := 1;
 
+putinteger(i);
 
-max := 10;
+for (i := 0; i < 10)
+    putinteger(i);
+    
+    i := i + 1;
+end for;
+out := true;
 
-putInteger(5);
+putinteger(i);
 
 end program.
 

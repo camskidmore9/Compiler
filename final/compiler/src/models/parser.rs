@@ -2080,7 +2080,7 @@ impl fmt::Display for Operator {
 pub enum Expr {
     //Literals
     IntLiteral(i64),                            //An integer literal (int value)
-    FloatLiteral(f64),                          //A float literal (float value)
+    FloatLiteral(f32),                          //A float literal (float value)
     StringLiteral(String),                      //A string literal (the string)
     BoolLiteral(bool),
     IntArrayLiteral(i32, Vec<i64>),             //An integer array literal
@@ -2112,7 +2112,7 @@ impl Expr {
             },
             tokenTypeEnum::FLOAT => {
                 let value_str = param1.ok_or("Float requires a float parameter".to_string())?;
-                let value = value_str.parse::<f64>().map_err(|e| format!("Failed to parse integer: {}", e))?;
+                let value = value_str.parse::<f32>().map_err(|e| format!("Failed to parse integer: {}", e))?;
                 Ok(Expr::FloatLiteral(value))
             },
             tokenTypeEnum::STRING => {

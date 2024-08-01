@@ -12,6 +12,7 @@ extern crate anyhow;
 extern crate parse_display;
 extern crate utf8_chars;
 extern crate unicode_segmentation;
+// extern crate funcLib;
 
 mod models;
 
@@ -27,11 +28,12 @@ use {
 
 ///////////////////////// Setup /////////////////////////
 
-use std::fs::File;
+use std::fs::{self, File};
 //imports
 use std::{io::prelude::*, path::Path};
-use std::process::Command;
-use inkwell::targets::{InitializationConfig, Target, TargetMachine, TargetTriple};
+use std::process::{self, Command};
+use inkwell::targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple};
+// use llvm_sys::target_machine::LLVMTargetMachineOptionsSetRelocMode;
 
 
 //The enumeration for saving Token types, this is a list of every type of Token there is
@@ -179,6 +181,14 @@ impl fmt::Display for tokenTypeEnum {
 
 //The main section of the code
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // env::set_var("RUST_BACKTRACE", "full");
+    // println!("cargo:rerun-if-changed=build.rs");
+    // println!("cargo:rustc-link-lib=dylib=funcLib");
+    // // Specify the path if the library is not in a standard location
+    // println!("cargo:rustc-link-search=native=./target/release/");
+    // Link the Rust library
+    // println!("cargo:rustc-link-lib=dylib=funcLib");
+    
     // Get the path from command line arguments
     let path = env::args().nth(1).expect("Please specify an input file");
     let mut myLexer = Lexer::new(&path);
@@ -237,13 +247,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut global_table: HashMap<String, PointerValue> = HashMap::new();
 
-    let input = env::args().nth(2).expect("Please specify an input value");
+    // let input = env::args().nth(2).expect("Please specify an input value");
 
 
 
     //Creates the llvm context and the code generator struct
     let context = Context::create();
-    let mut myGen = Compiler::new(programAst.clone(), &context, &mut global_table, input.clone(), "Program".to_string());
+    let mut myGen = Compiler::new(programAst.clone(), &context, &mut global_table, "test".to_string(), "Program".to_string());
 
     
 
@@ -263,45 +273,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Initialize LLVM
-    Target::initialize_native(&InitializationConfig::default()).expect("Failed to initialize LLVM targets");
+    // Initialize LLVM targets
+    Target::initialize_all(&InitializationConfig::default());
 
-    
-    // Create a target machine with no optimizations
-    // Create a target triple
-    let triple = TargetTriple::create("x86_64-pc-linux-gnu"); // Adjust as needed
-    let target = Target::from_triple(&triple).expect("Failed to get target from triple");
-    
+    // Define your target triple
+    let target_triple = "x86_64-unknown-linux-gnu"; // Replace with your target triple
+    let target_triple = TargetTriple::create(target_triple);
+
+
+    let target = Target::from_triple(&target_triple).expect("Failed to get target");
     let targetMachineCheck = target.create_target_machine(
-        &triple,
-        "x86-64", 
-        "generic", 
-        OptimizationLevel::None, 
-        inkwell::targets::RelocMode::Default, 
-        inkwell::targets::CodeModel::Default,
+        &target_triple,
+        "znver2",
+        "",
+        OptimizationLevel::None,
+        RelocMode::Default,
+        CodeModel::Default,
+
+        // &target_triple,
+        // "generic",
+        // "generic",
+        // &Default::default(),
+        // &Default::default(),
+        // &Default::default(),
     );
 
     let mut targetMachine: TargetMachine;
     match targetMachineCheck{
-        Some(val) => {
-            targetMachine = val;
+        Some(target) => {
+            targetMachine = target;
         }
         None => {
-            println!("Failed to create target machine");
+            println!("no target machine");
             return Ok(());
         }
     }
 
-    
-    // let target_machine = TargetMachine::new(
-    //     &target,
-    //     &triple,
-    //     "generic", // CPU type
-    //     inkwell::OptimizationLevel::None, // No optimization
-    //     inkwell::CodeGenOptLevel::Default, // Default optimization level (irrelevant here)
-    //     inkwell::RelocMode::Default, // Relocation mode
-    //     inkwell::CodeModel::Default, // Code model
-    // );
+
 
     // Generate object file
     let path = Path::new("output.o");
@@ -309,6 +317,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) = result {
         println!("Error generating object file: {}", e);
     }
+
+    let llvm_ir_path = Path::new("./out").with_extension("ll");
+    finalMod.print_to_file(&llvm_ir_path).expect("Error printing ll file");
+
+    let libPath = Path::new("./target/release/libfuncLib").with_extension("a");
+
+    let output = Command::new("clang")
+        .current_dir(env::current_dir().expect("failed to find current dir"))
+        .arg(&llvm_ir_path)
+        .arg(&libPath)
+        .output()
+        .expect("failed to execute linker");
+    let status = output.status;
+    if !status.success() {
+        println!("link error: {}", std::str::from_utf8(&output.stderr).unwrap());
+        process::exit(1);
+    }
+
+    fs::remove_file(llvm_ir_path).expect("failed to remove temporary ll file");
 
 
 

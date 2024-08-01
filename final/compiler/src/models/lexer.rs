@@ -392,6 +392,10 @@ impl Lexer{
                     currChar = self.inputFile.getChar();
 
                 }
+                while tokenString.len() < 64 {
+                    tokenString.push(' ');
+                }
+                tokenString.push('\0');  // Null terminator
                 let mut newToken = self.symTab.hashLook(tokenString, self.inputFile.lineCnt.to_string());
                 newToken.lineNum = self.inputFile.lineCnt.to_string();
                 if newToken.tt != tokenTypeEnum::STRING {

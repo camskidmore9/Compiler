@@ -12,6 +12,7 @@ extern crate anyhow;
 extern crate parse_display;
 extern crate utf8_chars;
 extern crate unicode_segmentation;
+// extern crate funcLib;
 
 // mod models;
 
@@ -19,8 +20,8 @@ extern crate unicode_segmentation;
 use {
     crate::models::{lexer::Lexer, parser::{Expr, Parser, *}, typechecker::{
         SymbolTable, SyntaxChecker
-    }}, anyhow::Result, inkwell::{builder::Builder, context::{self, Context}, module::Module, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum}, values::*, AddressSpace, FloatPredicate, IntPredicate}, parse_display::Display, std::{
-        collections::HashMap, env::{self, args}, ffi::CString, fmt, rc::Rc
+    }}, anyhow::Result, core::panic, inkwell::{builder::Builder, context::{self, Context}, module::Module, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType}, values::*, AddressSpace, FloatPredicate, IntPredicate}, parse_display::Display, std::{
+        array, collections::HashMap, env::{self, args}, ffi::CString, fmt, rc::Rc
     }
 };
 
@@ -212,24 +213,18 @@ impl<'ctx> Compiler<'ctx> {
         match self.programAst.clone(){
             Stmt::Program(progName, headerBox, bodyBox, lineNum) => {
                 //Adds the built ints
-                // self.addScanf();
-                // self.addPrintf();
-                // self.declareGetInt();
-                // self.declareGetBool();
-                // self.declareGetFloat();
-                // self.declareGetString();
-                // self.declarePutBool();
-                // self.declarePutFloat();
-                self.declarePutInt();
-                // self.declarePutString();
-                // self.declareSqrt();
+                self.defineGetInt();
+                self.definePutInt();
+                self.defineGetFloat();
+                self.definePutBool();
+                self.definePutFloat();
                 
                 
                 //Creates the main function
                 let i32Type = self.context.i32_type();
                 let mainType = i32Type.fn_type(&[], false);
 
-                let mainFunc = self.module.add_function("main", mainType, None);
+                let mut mainFunc = self.module.add_function("main", mainType, None);
 
                 println!("Program ast is a program");
                 //Goes through the header and adds each line to the module
@@ -239,12 +234,13 @@ impl<'ctx> Compiler<'ctx> {
                 let mainBuilder = self.context.create_builder();
 
                 
+                
 
                 let mut mainLocalTable: HashMap<String, PointerValue<'ctx>> = HashMap::new();
                 // self.builder = mainBuilder;
                 if let Stmt::Block(ref instrs, lineNum) = progHeader.clone() {
                     for instr in instrs {
-                        self.compileStmt(instr.clone(), &mainBuilder, &mut mainLocalTable);
+                        self.compileStmt(instr.clone(), &mainBuilder, &mut mainLocalTable, mainFunc);
                     }
                 } else {
                     println!("Problem with AST: header must be a Block");
@@ -265,18 +261,18 @@ impl<'ctx> Compiler<'ctx> {
                 // Check if the variable is a Block and iterate through it
                 if let Stmt::Block(ref instrs, lineNum) = body.clone() {
                     for instr in instrs {
-                        let good = self.compileStmt(instr.clone(), &mainBuilder, &mut mainLocalTable);
+                        let good = self.compileStmt(instr.clone(), &mainBuilder, &mut mainLocalTable, mainFunc);
                     }
                 } else {
                     println!("Problem with AST: header must be a Block");
                     
                 }
-                let mainRet = i32Type.const_int(1, false);
+                let mainRet = i32Type.const_int(0, false);
                 let _ = mainBuilder.build_return(Some(&mainRet));
             }
             _ => {
                 let errMsg = format!("ProgramAst must be a Program Stmt");
-                return Err(errMsg);
+                panic!("{}", errMsg);
             }
         }
         
@@ -287,7 +283,7 @@ impl<'ctx> Compiler<'ctx> {
         return Ok(&self.module);
     }
 
-    fn compileStmt(&mut self, stmt: Stmt, builder: &Builder<'ctx>, localTable: &mut HashMap<String, PointerValue<'ctx>>) -> bool{
+    fn compileStmt(&mut self, stmt: Stmt, builder: &Builder<'ctx>, localTable: &mut HashMap<String, PointerValue<'ctx>>, function: FunctionValue) -> bool{
         match stmt.clone(){
             //For global variable declarations
             Stmt::VarDecl(varName, varType, lineNum) => {
@@ -308,9 +304,13 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(err) => {
                                 println!("Error allocating local bool variable {}", localName.clone());
-                                return false;
+                                panic!();
                             }
                         }
+
+                        let initVal = localType.const_int(0, false);
+                        let _ = builder.build_store(localPtr, initVal);
+
                         localTable.insert(varName.clone(), localPtr);
                         
                         return true;
@@ -331,9 +331,13 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(err) => {
                                 println!("Error allocating local float variable {}", localName.clone());
-                                return false;
+                                panic!();
                             }
                         }
+
+                        let initVal = localType.const_float(0.0);
+                        let _ = builder.build_store(localPtr, initVal);
+
                         localTable.insert(varName.clone(), localPtr);
                         
                         return true;
@@ -353,10 +357,14 @@ impl<'ctx> Compiler<'ctx> {
                                 localPtr = ptr.clone();
                             }
                             Err(err) => {
-                                println!("Error allocating local int variable {}: {}", localName.clone(), err.to_string());
-                                return false;
+                                println!("Error allocating local int variable {}: {}", localName.clone(), err);
+                                panic!();
                             }
                         }
+
+                        let initVal = localType.const_int(0, false);
+                        let _ = builder.build_store(localPtr, initVal);
+
                         localTable.insert(varName.clone(), localPtr);
                         
                         return true;
@@ -377,9 +385,19 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(err) => {
                                 println!("Error allocating local str variable {}", varName.clone());
-                                return false;
+                                panic!();
                             }
                         }
+
+                        let string = "EMPTY";
+                        let stringBytes = string.as_bytes();
+                        let arrayVal = self.context.const_string(stringBytes, false).clone();
+            
+            
+                        // Wrap the array constant in a BasicValueEnum
+                        let initVal = BasicValueEnum::ArrayValue(arrayVal);
+                        let _ = builder.build_store(localPtr, initVal);
+
                         localTable.insert(varName.clone(), localPtr);
                         
                         return true;
@@ -401,7 +419,7 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(err) => {
                                 println!("Error allocating local str variable {}", varName.clone());
-                                return false;
+                                panic!();
                             }
                         }
                         localTable.insert(varName.clone(), localPtr);
@@ -449,19 +467,31 @@ impl<'ctx> Compiler<'ctx> {
                         return true;
                     }
                     VarType::Str => {
-                        let maxStringLen = 64 as u32 + 1;
-                        let i8Type = self.context.i8_type();
-                        let arrayType = i8Type.array_type(maxStringLen);
-                        // let stringVal: Vec<IntValue> = 
 
+                        // Define the array type [65 x i8]
+                        let max_string_len = 65;
+                        let i8_type = self.context.i8_type();
+                        let array_type = i8_type.array_type(max_string_len);
+
+                        // Create a string that fits exactly 65 characters with padding and null terminator
+                        let string_value = "A".repeat(64) + "\0"; // 64 spaces + null terminator
+
+                        // Convert the string into a byte array
+                        let string_bytes = string_value.into_bytes();
                         
-                        // let varType = self.context.f64_type();
-                        let globName = varName.clone();
-                        let globVar = self.module.add_global(arrayType.clone(), None, &globName);
-                        let _ =  globVar.set_initializer(&self.context.const_string(&"string".to_string().into_bytes(), false));
+                        // // Create the constant array with the string bytes
+                        // let const_array = array_type.const_array(
+                        //     &string_bytes.iter().map(|&byte| i8_type.const_int(byte as u64, false).into()).collect::<Vec<BasicValueEnum>>()
+                        // );
 
-                        let globPtr = globVar.as_pointer_value();
-                        self.globalTable.insert(varName.clone(), globPtr);
+                        // Declare the global variable and initialize it
+                        let glob_name = varName.clone();
+                        let glob_var = self.module.add_global(array_type, Some(AddressSpace::default()), &glob_name);
+                        let globPtr = glob_var.as_pointer_value();
+                        // let test = unsafe { ArrayValue::new(string_value) };
+                        let test = array_type.const_zero();
+                        self.globalTable.insert(glob_name.clone(), globPtr);
+                        glob_var.set_initializer(&test);
                         
                         return true;
                     }
@@ -505,7 +535,7 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 None => {
                                     println!("variable {} not found", targName.clone());
-                                    return false;
+                                    panic!();
                                 }
                             }
                         }
@@ -528,7 +558,7 @@ impl<'ctx> Compiler<'ctx> {
                         }
                         Err(err) => {
                             println!("{}", err.clone());
-                            return false;
+                            panic!();
                         }
                     }
 
@@ -549,7 +579,7 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 None => {
                                     println!("variable {} not found", targName.clone());
-                                    return false;
+                                    panic!();
                                 }
                             }
                         }
@@ -569,14 +599,14 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 Err(err) => {
                                     println!("Error converting float to int");
-                                    return false;
+                                    panic!();
                                 }
                             }
 
                         }
                         _ => {
                             println!("Can only index by integer");
-                            return false;
+                            panic!();
                         }
                     }
                 
@@ -593,7 +623,7 @@ impl<'ctx> Compiler<'ctx> {
                         }
                         Err(err) => {
                             println!("Error getting array index ptr");
-                            return false;
+                            panic!();
                         }
                     }
                     // let elementPtr = builder.
@@ -602,7 +632,7 @@ impl<'ctx> Compiler<'ctx> {
                 
                 else {
                     println!("Cannot assing to a non variable");
-                    return false;
+                    panic!();
                 }
 
                 if let Expr::ArrayRef(ref targName, indexExpr) = newValue.clone() {
@@ -622,7 +652,7 @@ impl<'ctx> Compiler<'ctx> {
                         Err(err) => {
                             println!("{}", err.clone());
                             println!("Could error with index {}", err.clone());
-                            return false;
+                            panic!();
                         }
                     }
 
@@ -641,7 +671,7 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 None => {
                                     println!("variable {} not found", targName.clone());
-                                    return false;
+                                    panic!();
                                 }
                             }
                         }
@@ -661,14 +691,14 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 Err(err) => {
                                     println!("Error converting float to int");
-                                    return false;
+                                    panic!();
                                 }
                             }
 
                         }
                         _ => {
                             println!("Can only index by integer");
-                            return false;
+                            panic!();
                         }
                     }
                 
@@ -681,7 +711,7 @@ impl<'ctx> Compiler<'ctx> {
                         }
                         Err(err) => {
                             println!("Error getting array index ptr");
-                            return false;
+                            panic!();
                         }
                     }
 
@@ -694,7 +724,7 @@ impl<'ctx> Compiler<'ctx> {
                         }
                         Err(msg) => {
                             println!("Error getting array index value");
-                            return false;
+                            panic!();
                         }
                     }
                     // let elementPtr = builder.
@@ -709,7 +739,7 @@ impl<'ctx> Compiler<'ctx> {
                         }
                         Err(msg) => {
                             println!("{}", msg.clone());
-                            return false;
+                            panic!();
                         }
                     }
                 }
@@ -727,11 +757,18 @@ impl<'ctx> Compiler<'ctx> {
                         return true;
                     }
                     BasicValueEnum::FloatValue(intVal) => {
+                        
+
+                        
+
+                        
                         println!("Stored int value {} in variable {}",intVal.clone(), varName.clone());
                         let _ = builder.build_store(variablePtr, intVal.clone());
                         return true;
                     }
                     BasicValueEnum::ArrayValue(val) => {
+                        
+
                         println!("ARRAY {}", val.clone());
                         let _ = builder.build_store(variablePtr, val.clone());
 
@@ -750,11 +787,11 @@ impl<'ctx> Compiler<'ctx> {
             }
             Stmt::Block(blockStmt, lineNum) => {
                 for instr in blockStmt.clone() {
-                    let good = self.compileStmt(instr.clone(), builder, localTable);
+                    let good = self.compileStmt(instr.clone(), builder, localTable, function);
                     if (!good){
                         println!("Error in block:");
                         instr.display(0);
-                        return false;
+                        panic!();
                     } else {
                         //continue
                     }
@@ -763,7 +800,7 @@ impl<'ctx> Compiler<'ctx> {
             }
             Stmt::Error(err, lineNum) => {
                 println!("Somehow an error made it to the compiler");
-                return false;
+                panic!();
             }
             Stmt::Expr(exprStmt, lineNum) => {
                 // println!("ExprStmt needs written");
@@ -773,18 +810,23 @@ impl<'ctx> Compiler<'ctx> {
                         let checked = self.compileExpr(&exprStmt.clone(), builder, localTable);
                         match checked {
                             Ok(val) => {
+                                // println!("Called expr{}")
                                 println!("SOMETHING SHOULD BE DONE HERE, IDK");
                                 return true;
                             }
                             Err(err) => {
                                 println!("Error: {}", err.clone());
-                                return false;
+                                panic!();
                             }
                         }
                     }
                 }
             }
             Stmt::For(assignment, condExpr, body, lineNum) => {
+                //Creates the local builder
+                let forBuilder = builder;
+
+                
                 //Parses the assignment first
                 let mut iInitVal: BasicValueEnum;
                 let mut iName: String;
@@ -793,7 +835,7 @@ impl<'ctx> Compiler<'ctx> {
                     if let Expr::VarRef(varName) = varRef.clone(){
                         println!("for loop variable i {}", varName.clone());
                         iName = varName.clone();
-                        let iteratorValCheck = self.compileExpr(&val.clone(), builder, localTable);
+                        let iteratorValCheck = self.compileExpr(&val.clone(), &forBuilder, localTable);
                         match iteratorValCheck{
                             Ok(val) => {
                                 println!("Iterator value: {}", val.clone());
@@ -801,13 +843,13 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(err) => {
                                 println!("Error parsing for loop iterator assignment: {}", err.clone());
-                                return false;
+                                panic!();
                             }
                         }
                     }
                     else {
                         println!("Error: For loop iterator must be a variable");
-                        return false;
+                        panic!();
                     }
                 }
                 else {
@@ -820,30 +862,20 @@ impl<'ctx> Compiler<'ctx> {
                 let fnType = intType.fn_type(&[], false);
 
                 //set up the loop "function"
-                let loopFunction = self.module.add_function("forLoop", fnType, None);
-                let entry = self.context.append_basic_block(loopFunction, "ForEntry");
+                let loopFunction = function;
+                // let forEntry = self.context.append_basic_block(loopFunction, "ForEntry");
                 let loopCond = self.context.append_basic_block(loopFunction, "forCond");
                 let loopBody = self.context.append_basic_block(loopFunction, "forBody");
-                let loopEnd = self.context.append_basic_block(loopFunction, "forEnd");
-                let forBuilder = self.context.create_builder();
+                let mergeFor = self.context.append_basic_block(loopFunction, "mergeFor");
                 
-                // self.builder = b
 
-                forBuilder.position_at_end(entry);
-
-
-                //Initialize the iterator "i"
-                let mut iPtr: PointerValue;
-                let iPtrCheck = forBuilder.build_alloca(intType, &iName.clone());
-                match iPtrCheck{
-                    Ok(val) => {
-                        iPtr = val.clone();
-                    }
-                    Err(err) => {
-                        println!("Error allocating iterator pointer");
-                        return false;
-                    }
-                }
+                
+                //Sets up the conditional
+                // let _ = forBuilder.build_store(iPtr, iInitVal.clone());
+                let _ = forBuilder.build_unconditional_branch(loopCond);
+                
+                //Loop condition block
+                let _ = forBuilder.position_at_end(loopCond); 
 
                 //Parse the condition
                 let mut condOp1Val: BasicValueEnum;
@@ -873,116 +905,41 @@ impl<'ctx> Compiler<'ctx> {
                         }
                         _ => {
                             println!("For condition operator must be logical operator");
-                            return false;
+                            panic!();
                         }
                     }
-                    match op1.clone(){
-                        Expr::VarRef(varName) => {
-                            println!("For loop condition op 1 variable: {}", varName.clone());
-                            println!("iName: {}", iName.clone());
-                            if varName.clone() == iName.clone(){
-                                println!("They the same");
-                                let iValCheck = forBuilder.build_load(iPtr, &iName.clone());
-                                // let mut iVal: BasicValueEnum;
-                                match iValCheck{
-                                    Ok(val) => {
-                                        condOp1Val = val.clone();
-                                    }
-                                    Err(err) => {
-                                        println!("Error getting iterator value");
-                                        return false;
-                                    }
-                                }
-                            } else {
-                                let valCheck = self.compileExpr(&op1.clone(), builder, localTable);
-                                match valCheck{
-                                    Ok(val) => {
-                                        condOp1Val = val.clone();
-                                    }
-                                    Err(err) => {
-                                        println!("Error getting for condition variable value");
-                                        return false;
-                                    }
-                                }
-                            }
+                    //First gets the values of both operands
+                    let op1Res = self.compileExpr(&op1.clone(), &forBuilder, localTable);
+                    //Makes sure both results of checked operands are good
+                    match op1Res{
+                        Ok(res) => {
+                            condOp1Val = res;
                         }
-                        _ => {
-                            //First gets the values of both operands
-                            let op1Res = self.compileExpr(&op1.clone(), builder, localTable);
-                            // let mut op1Val: BasicValueEnum;
-                            //Makes sure both results of checked operands are good
-                            match op1Res{
-                                Ok(res) => {
-                                    condOp1Val = res;
-                                }
-                                Err(msg) => {
-                                    println!("Error in for loop condition");
-                                    return false;
-                                }
-                            }
+                        Err(msg) => {
+                            panic!("Error in for loop condition");
                         }
                     }
-                    match op2.clone(){
-                        Expr::VarRef(varName) => {
-                            println!("For loop condition op 2 variable: {}", varName.clone());
-                            
-                            if varName == iName.clone(){
-                                let iValCheck = forBuilder.build_load(iPtr, &iName.clone());
-                                // let mut iVal: BasicValueEnum;
-                                match iValCheck{
-                                    Ok(val) => {
-                                        condOp2Val = val.clone();
-                                    }
-                                    Err(err) => {
-                                        println!("Error getting iterator value");
-                                        return false;
-                                    }
-                                }
-                            } else {
-                                println!("Not the same");
-                                let valCheck = self.compileExpr(&op2.clone(), builder, localTable);
-                                match valCheck{
-                                    Ok(val) => {
-                                        condOp2Val = val.clone();
-                                    }
-                                    Err(err) => {
-                                        println!("Error getting for condition variable value {}: {}", varName.clone(), err.clone());
-                                        return false;
-                                    }
-                                }
-                            }
+                    //First gets the values of both operands
+                    let op2Res = self.compileExpr(&op2.clone(), &forBuilder, localTable);
+                    //Makes sure both results of checked operands are good
+                    match op2Res{
+                        Ok(res) => {
+                            condOp2Val = res;
                         }
-                        _ => {
-                            //First gets the values of both operands
-                            let op2Res = self.compileExpr(&op1.clone(), builder, localTable);
-                            // let mut op1Val: BasicValueEnum;
-                            //Makes sure both results of checked operands are good
-                            match op2Res{
-                                Ok(res) => {
-                                    condOp2Val = res;
-                                }
-                                Err(msg) => {
-                                    println!("Error in for loop condition");
-                                    return false;
-                                }
-                            }
+                        Err(msg) => {
+                            panic!("Error in for loop condition");
                         }
                     }
-
-
+                    
+                   
                 } else {
                 
-                    println!("For loop condition must be a logical operation");
-                    return false;
+                    panic!("For loop condition must be a logical operation");
                 }
 
-                //Sets up the conditional
-                let _ = forBuilder.build_store(iPtr, iInitVal.clone());
-                let _ = forBuilder.build_unconditional_branch(loopCond);
                 
-                //Loop condition block
-                let _ = forBuilder.position_at_end(loopCond);
-
+                
+                //Checks/converts the values of the 2 operands
                 let mut op1Int: IntValue;
                 let mut op2Int: IntValue;
                 match condOp1Val{
@@ -998,13 +955,13 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(msg) => {
                                 println!("Error converting float to int");
-                                return false;
+                                panic!();
                             }
                         }
                     }
                     _ => {
                         println!("For loop condition values must be numbers");
-                        return false;
+                        panic!();
                     }
                 }
                 match condOp2Val{
@@ -1020,13 +977,13 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(msg) => {
                                 println!("Error converting float to int");
-                                return false;
+                                panic!();
                             }
                         }
                     }
                     _ => {
                         println!("For loop condition values must be numbers");
-                        return false;
+                        panic!();
                     }
                 }
 
@@ -1039,46 +996,52 @@ impl<'ctx> Compiler<'ctx> {
                     }
                     Err(msg) => {
                         println!("Error creating condition");
-                        return false;
+                        panic!();
                     }
                 }
 
-                let _ = forBuilder.build_conditional_branch(condition, loopBody, loopEnd);
+                //Set up the conditional branch, determining if loop is taken or not
+                let _ = forBuilder.build_conditional_branch(condition, loopBody, mergeFor);
 
+                //Move builder to the loop body to populate it
                 forBuilder.position_at_end(loopBody);
 
                 //Populates the body with statements
                 let bodyStmt = *body.clone();
-                self.compileStmt(bodyStmt.clone(), &forBuilder, localTable);
+                self.compileStmt(bodyStmt.clone(), &forBuilder, localTable, function);
 
                 //Adds a conditional check to the end
                 let _ = forBuilder.build_unconditional_branch(loopCond);
 
                 //Moves builder to the end of the block
-                forBuilder.position_at_end(loopEnd);
-                let _ = forBuilder.build_return(None);
+                forBuilder.position_at_end(mergeFor);
 
                 println!("CREATED FOR LOOP ");
 
-                let _ = builder.build_call(loopFunction.clone(), &[], "forLoopCall");
+                // let _ = builder.build_call(loopFunction.clone(), &[], "forLoopCall");
+                // let _ = builder.build_unconditional_branch(forEntry);
                 println!("Inserted for loop");
                 return true;
             }
             Stmt::If(condExpr, body, elseStmt, lineNum) => {
+                
+                
                 //Sets up the function stuff
-                let intType = self.context.i32_type().clone();
-                let fnType = intType.fn_type(&[], false);
-                let ifFunction = self.module.add_function("if", fnType, None);
-                let ifEntry = self.context.append_basic_block(ifFunction, "ifEntry");
+                let voidType = self.context.void_type().clone();
+                let fnType = voidType.fn_type(&[], false);
+                let ifFunction = function;
+                // let ifEntry = self.context.append_basic_block(ifFunction, "ifEntry");
                 // let ifCond = self.context.append_basic_block(ifFunction, "ifCondition");
                 let ifBody = self.context.append_basic_block(ifFunction, "ifBody");
                 let elseBody = self.context.append_basic_block(ifFunction, "elseBody");
+                let mergeBack = self.context.append_basic_block(ifFunction, "ifMerge");
+                
                 // let ifEnd = self.context.append_basic_block(ifFunction, "forEnd");
-                let ifBuilder = self.context.create_builder();
+                let ifBuilder = builder;
                 
 
                 //Position at the beginning of the if statement
-                ifBuilder.position_at_end(ifEntry);
+                // ifBuilder.position_at_end(ifEntry);
 
                 //Parse the condition
                 let mut condOp1Val: BasicValueEnum;
@@ -1108,7 +1071,7 @@ impl<'ctx> Compiler<'ctx> {
                         }
                         _ => {
                             println!("For condition operator must be logical operator");
-                            return false;
+                            panic!();
                         }
                     }
                     
@@ -1120,7 +1083,7 @@ impl<'ctx> Compiler<'ctx> {
                         }
                         Err(err) => {
                             println!("Error getting if condition op 1: {}", err.clone());
-                            return false;
+                            panic!();
                         }
                     }
                     let op2Check = self.compileExpr(&op2.clone(), builder, localTable);
@@ -1130,7 +1093,7 @@ impl<'ctx> Compiler<'ctx> {
                         }
                         Err(err) => {
                             println!("Error getting if condition op 2");
-                            return false;
+                            panic!();
                         }
                     } 
 
@@ -1146,7 +1109,7 @@ impl<'ctx> Compiler<'ctx> {
 
                 } else {
                     println!("If loop condition must be a logical operation");
-                    return false;
+                    panic!();
                 }
                 
                 //Parses operand returns
@@ -1165,13 +1128,13 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(msg) => {
                                 println!("Error converting float to int");
-                                return false;
+                                panic!();
                             }
                         }
                     }
                     _ => {
                         println!("For loop condition values must be numbers");
-                        return false;
+                        panic!();
                     }
                 }
                 match condOp2Val{
@@ -1187,13 +1150,13 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(msg) => {
                                 println!("Error converting float to int");
-                                return false;
+                                panic!();
                             }
                         }
                     }
                     _ => {
                         println!("For loop condition values must be numbers");
-                        return false;
+                        panic!();
                     }
                 }
 
@@ -1206,60 +1169,136 @@ impl<'ctx> Compiler<'ctx> {
                     }
                     Err(msg) => {
                         println!("Error creating condition");
-                        return false;
+                        panic!("Invalid condition");
+                        
                     }
                 }
 
                 //Creates the condition
-                let _ = ifBuilder.build_conditional_branch(condition, ifBody, elseBody);
+                let _ = builder.build_conditional_branch(condition, ifBody, elseBody);
 
                 //Position at the end of the ifBody
                 ifBuilder.position_at_end(ifBody);
+                
+                //Add to the if body
+                let mut ifRet: bool = false;
                 let bodyStmt = *body.clone();
-                let checkedIfBody = self.compileStmt(bodyStmt.clone(), &ifBuilder, localTable);
-                if checkedIfBody{
-                    //continue
-                } else {
-                    println!("Error building if body");
-                    return false;
+                match bodyStmt.clone(){
+                    Stmt::Block(stmtVec, lineNum) => {
+                        for stmt in stmtVec.clone(){
+                            println!("COMPILING IF STATEMENT");
+                            match stmt.clone(){
+                                Stmt::Return(val, lineNum) => {
+                                    println!("IF RETURN");
+                                    let checkedIfBody = self.compileStmt(stmt.clone(), builder, localTable, function);
+                                    if checkedIfBody{
+                                        //continue
+                                    } else {
+                                        println!("Error building if body");
+                                        panic!();
+                                    }
+                                    ifRet = true;
+                                    break;
+                                }
+                                _ => {
+                                    println!("Not if return");
+                                    let checkedIfBody = self.compileStmt(stmt.clone(), builder, localTable, function);
+                                    if checkedIfBody{
+                                        //continue
+                                    } else {
+                                        println!("Error building if body");
+                                        panic!();
+                                    }
+                                    ifRet = false;
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        panic!("If body must be a block");
+                    }
+                }
+                    
+                if !ifRet{
+                    let _ = builder.build_unconditional_branch(mergeBack);
                 }
 
                 //Move to the end of the else body
                 ifBuilder.position_at_end(elseBody);
 
-
+                let mut elseRet: bool = false;
                 //Checks if there is an else statement
                 match elseStmt.clone(){
                     Some(elseVal) => {
+                        let elseStmt = *elseVal.clone();
                         println!("If statement with else");
-                        let elseBlock = *elseVal.clone();
-                        let checkedElse = self.compileStmt(elseBlock.clone(), &ifBuilder, localTable);
-                        if checkedElse{
-                            //continue
+                        match elseStmt{
+                            Stmt::Return(val, lineNum) => {
+                                let checkedIfBody = self.compileStmt(bodyStmt.clone(), &ifBuilder, localTable, function);
+                                if checkedIfBody{
+                                    //continue
+                                } else {
+                                    println!("Error building if body");
+                                    panic!();
+                                }
+                                elseRet = true;
+                            }
+                            Stmt::Block(stmtVec, lineNum) => {
+                                for stmt in stmtVec.clone(){
+                                    match stmt.clone(){
+                                        Stmt::Return(val, lineNum) => {
+                                            let checkedIfBody = self.compileStmt(bodyStmt.clone(), &ifBuilder, localTable, function);
+                                            if checkedIfBody{
+                                                //continue
+                                            } else {
+                                                println!("Error building if body");
+                                                panic!();
+                                            }
+                                            elseRet = true;
+                                        }
+                                        _ => {
+                                            let checkedIfBody = self.compileStmt(bodyStmt.clone(), &ifBuilder, localTable, function);
+                                            if checkedIfBody{
+                                                //continue
+                                            } else {
+                                                println!("Error building if body");
+                                                panic!();
+                                            }
+                                            elseRet = false;
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {
+                                let checkedIfBody = self.compileStmt(bodyStmt.clone(), &ifBuilder, localTable, function);
+                                if checkedIfBody{
+                                    //continue
+                                } else {
+                                    println!("Error building if body");
+                                    panic!();
+                                }
+                                elseRet = false;
+                            }
                         }
-                        else {
-                            println!("problem with else body");
-                            return false;
-                        }
-                        //set up the loop "function"
-
-
-                        
-
                     }
                     None => {
                         println!("If statement no else");
+                        // let _ = builder.build_unconditional_branch(mergeBack);
+                        elseRet = false;
                     }
+                }
+
+                if !elseRet {
+                    let _ = builder.build_unconditional_branch(mergeBack);
                 }
                     
                 //Moves builder to the end of the block
-                ifBuilder.position_at_end(elseBody);
-                let _ = ifBuilder.build_return(None);
+                ifBuilder.position_at_end(mergeBack);
 
                 println!("CREATED if LOOP ");
 
-                let _ = builder.build_call(ifFunction.clone(), &[], "ifStatementCall");
-                println!("Inserted for loop");
+                // let _ = builder.build_call(ifFunction.clone(), &[], "ifStatementCall");
+                // let _ = builder.build_unconditional_branch(ifEntry);
                 return true;
                 
             }
@@ -1396,6 +1435,8 @@ impl<'ctx> Compiler<'ctx> {
 
                 let procFunVal = self.module.add_function(&procName.clone(), funcType, None);
 
+                let function = procFunVal;
+
                 //Creates the entrypoint at the procedure
                 let procEntry = self.context.append_basic_block(procFunVal, "procEntry");
                 procBuilder.position_at_end(procEntry);
@@ -1403,14 +1444,76 @@ impl<'ctx> Compiler<'ctx> {
                 
 
                 let parmStmt = paramStmtBlock.clone();
-                let checkParm = self.compileStmt(parmStmt.clone(), &procBuilder, &mut procLocTable);
-                if checkParm{
-                    //continue
-                }
-                else {
-                    println!("Error declaring parameter vars");
+                // let checkParm = self.compileStmt(parmStmt.clone(), &procBuilder, &mut procLocTable, function);
+                match parmStmt{
+                    Stmt::VarDecl(varName, varType, lineNum) => {
+                        let params = procFunVal.get_params();
+                        let paramValue = params[1];
+                        let paramName = varName.clone();
+                        let paramType = paramValue.get_type();
+                        //Allocates space
+                        let allocaRes = procBuilder.build_alloca(paramType.clone(), &paramName);
+                        let paramPtr: PointerValue;
+                        match allocaRes{
+                            Ok(val) => {
+                                paramPtr = val;
+                            }
+                            Err(err) => {
+                                panic!("Error allocating param space {}", err);
+                            }
+                        }
+
+                        //Stores the parameter
+                        let _ = procBuilder.build_store(paramPtr, paramValue.clone());
+
+                        //Adds location to the hash table
+                        procLocTable.insert(paramName.clone(), paramPtr.clone());
+
+
+                    }
+                    Stmt::Block(stmtVec, lineNum) => {
+                        let mut i = 0;
+                        for paramStmt in stmtVec.clone(){
+                            let curStmt = paramStmt.clone();
+                            match curStmt{
+                                Stmt::VarDecl(varName, varType, lineNum) => {
+                                    let params = procFunVal.get_params();
+                                    let paramValue = params[i];
+                                    let paramName = varName.clone();
+                                    let paramType = paramValue.get_type();
+                                    //Allocates space
+                                    let allocaRes = procBuilder.build_alloca(paramType.clone(), &paramName);
+                                    let paramPtr: PointerValue;
+                                    match allocaRes{
+                                        Ok(val) => {
+                                            paramPtr = val;
+                                        }
+                                        Err(err) => {
+                                            panic!("Error allocating param space {}", err);
+                                        }
+                                    }
+
+                                    //Stores the parameter
+                                    let _ = procBuilder.build_store(paramPtr, paramValue.clone());
+
+                                    //Adds location to the hash table
+                                    procLocTable.insert(paramName.clone(), paramPtr.clone());
+
+
+                                }
+                                _ => {
+                                    panic!("Parameters must be variable declaration or block");
+                                }
+                            }
+                            i += 1;
+                        }
+                    }
+                    _ => {
+                        panic!("Parameters must be variable declaration or block");
+                    }
                 }
 
+                procBuilder.position_at_end(procEntry);
 
                 //Goes through the header and adds each line to the module
                 let header = headerBox.clone();
@@ -1418,16 +1521,21 @@ impl<'ctx> Compiler<'ctx> {
                 // Check if the variable is a Block and iterate through it
                 if let Stmt::Block(ref instrs, lineNum) = procHeader.clone() {
                     for instr in instrs {
-                        self.compileStmt(instr.clone(), &procBuilder, &mut procLocTable);
+                        self.compileStmt(instr.clone(), &procBuilder, &mut procLocTable, function);
                     }
                 } else {
                     println!("Problem with procedure AST: header must be a Block");
-                    return false;
+                    panic!();
                 }
 
                 println!("procedure Header processed");
 
-                
+                let procBody = self.context.append_basic_block(procFunVal, "procBody");
+
+                let _ = procBuilder.build_unconditional_branch(procBody);
+
+
+                procBuilder.position_at_end(procBody);
 
                 println!("Time to go through body");
                 //Goes through the body and adds each line to the module
@@ -1437,11 +1545,12 @@ impl<'ctx> Compiler<'ctx> {
                 // Check if the variable is a Block and iterate through it
                 if let Stmt::Block(ref instrs, lineNum) = body.clone() {
                     for instr in instrs {
-                        let good = self.compileStmt(instr.clone(), &procBuilder, &mut procLocTable);
+                        println!("Proc expressions");
+                        let good = self.compileStmt(instr.clone(), &procBuilder, &mut procLocTable, function);
                     }
                 } else {
                     println!("Problem with proc AST: body must be a Block");
-                    return false;
+                    panic!();
                 }
                 
                 println!("Procedure created");
@@ -1456,7 +1565,8 @@ impl<'ctx> Compiler<'ctx> {
             Stmt::Return(valueExpr, lineNum) => {
                 let retValExpr = valueExpr.clone();
                 if let Expr::VarRef(varName) = retValExpr.clone(){
-                    if varName.clone() == "".to_string(){
+                    println!("RETURN EXPRESSION");
+                    if varName.clone() == ""{
                         let _ = builder.build_return(None);
                         return true;
                     } else {
@@ -1488,7 +1598,7 @@ impl<'ctx> Compiler<'ctx> {
                             Err(e) => {
                                 // Handle the error case
                                 println!("Failed get return value: {}", e);
-                                return false;
+                                panic!();
                             }
                         }
                         
@@ -1524,7 +1634,7 @@ impl<'ctx> Compiler<'ctx> {
                             Err(e) => {
                                 // Handle the error case
                                 println!("Failed get return value: {}", e);
-                                return false;
+                                panic!();
                             }
                         }
                 }
@@ -1540,7 +1650,7 @@ impl<'ctx> Compiler<'ctx> {
     }
 
         
-    fn compileExpr(&self, expr: &Expr, builder: &Builder<'ctx>, localTable: &mut HashMap<String, PointerValue<'ctx>>) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compileExpr(&mut self, expr: &Expr, builder: &Builder<'ctx>, localTable: &mut HashMap<String, PointerValue<'ctx>>) -> Result<BasicValueEnum<'ctx>, String> {
         match expr {
             Expr::IntLiteral(value) => {
                 let val = value.clone() as u64;
@@ -1552,7 +1662,7 @@ impl<'ctx> Compiler<'ctx> {
             Expr::FloatLiteral(value) => {
                 // let val = value.clone() as f32;
                 let floatType = self.context.f32_type().clone();
-                let floatVal = floatType.const_float(value.clone());
+                let floatVal = floatType.const_float(value.clone().into());
                 return Ok(BasicValueEnum::FloatValue(floatVal.clone()));
             }
             
@@ -1601,13 +1711,14 @@ impl<'ctx> Compiler<'ctx> {
                 let checkLocVar = localTable.get(&varName.clone());
                 match checkLocVar{
                     Some(varPtr) => {
+                        println!("Loading local value {} at location {}", varName.clone(), varPtr.clone());
                         let loadedVal = builder.build_load(varPtr.clone(), &varName.clone());
                         match loadedVal{
                             Ok(val) => {
                                 return Ok(val.clone());
                             }
                             Err(err) => {
-                                return Err(format!("Error with pointer to value {}", varName.clone()));
+                                panic!("{}", format!("Error with pointer to value {}", varName.clone()));
                             }
                         }
                     }
@@ -1615,19 +1726,21 @@ impl<'ctx> Compiler<'ctx> {
                         let checkGlobVar = self.globalTable.get(&varName.clone());
                             match checkGlobVar{
                                 Some(varPtr) => {
+                                    println!("Loading local value {} at location {}", varName.clone(), varPtr.clone());
+                                    
                                     let loadedVal = builder.build_load(varPtr.clone(), &varName.clone());
                                     match loadedVal{
                                         Ok(val) => {
                                             return Ok(val.clone());
                                         }
                                         Err(err) => {
-                                            return Err(format!("FFFError with pointer to value {}", varName.clone()));
+                                            panic!("{}", format!("FFFError with pointer to value {}", varName.clone()));
                                         }
                                     }
                                 }
                                 None => {
                                     let errMsg = format!("Variable {} is not defined", varName.clone());
-                                    return Err(errMsg);
+                                    panic!("{}", errMsg);
                                 }
                             }
                     }
@@ -1651,7 +1764,7 @@ impl<'ctx> Compiler<'ctx> {
                     Err(err) => {
                         println!("{}", err.clone());
                         let errMsg = format!("Could error with index {}", err.clone());
-                        return Err(errMsg.clone());
+                        panic!("{}", errMsg.clone());
                     }
                 }
     
@@ -1672,7 +1785,7 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             None => {
                                 let errMsg = format!("variable {} not found", targName.clone());
-                                return Err(errMsg.clone());
+                                panic!("{}", errMsg.clone());
                             }
                         }
                     }
@@ -1692,14 +1805,14 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(err) => {
                                 let errMsg = format!("Error converting float to int");
-                                return Err(errMsg.clone());
+                                panic!("{}", errMsg.clone());
                             }
                         }
     
                     }
                     _ => {
                         let errMsg = format!("Can only index by integer");
-                        return Err(errMsg.clone());
+                        panic!("{}", errMsg.clone());
                     }
                 }
             
@@ -1715,7 +1828,7 @@ impl<'ctx> Compiler<'ctx> {
                     }
                     Err(err) => {
                         let errMsg = format!("Error getting array index ptr");
-                        return Err(errMsg);
+                        panic!("{}", errMsg);
                     }
                 }
     
@@ -1738,7 +1851,7 @@ impl<'ctx> Compiler<'ctx> {
                     }
                     Err(msg) => {
                         let errMsg = format!("Error getting array index value");
-                        return Err(errMsg.clone());
+                        panic!("{}", errMsg.clone());
                     }
                 }
                 // let elementPtr = builder.
@@ -1750,7 +1863,7 @@ impl<'ctx> Compiler<'ctx> {
                 // let builder = &mut builder;
                 
                 let intType = self.context.i32_type().clone();
-                let floatType = self.context.f64_type().clone();
+                let floatType = self.context.f32_type().clone();
     
                 //First gets the values of both operands
                 let op1Res = self.compileExpr(&*op1.clone(), builder, localTable).clone();
@@ -1763,7 +1876,7 @@ impl<'ctx> Compiler<'ctx> {
                         op1Val = res.clone();
                     }
                     Err(msg) => {
-                        return Err(msg.clone());
+                        panic!("{}", msg.clone());
                     }
                 }
                 match op2Res.clone(){
@@ -1771,7 +1884,7 @@ impl<'ctx> Compiler<'ctx> {
                         op2Val = res.clone();
                     }
                     Err(msg) => {
-                        return Err(msg.clone());
+                        panic!("{}", msg.clone());
                     }
                 }
     
@@ -1803,11 +1916,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op1Float = val.clone();
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -1824,11 +1937,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op2Float = val.clone();
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Does the float add
@@ -1838,7 +1951,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::FloatValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                         } 
@@ -1852,7 +1965,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -1874,11 +1987,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op1Float = val.clone();
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -1895,11 +2008,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op2Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Does the float add
@@ -1909,7 +2022,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::FloatValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                         } 
@@ -1923,7 +2036,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -1945,11 +2058,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op1Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -1966,11 +2079,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op2Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Does the float add
@@ -1980,7 +2093,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::FloatValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                         } 
@@ -1994,7 +2107,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -2016,11 +2129,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op1Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -2037,11 +2150,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op2Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Does the float add
@@ -2051,7 +2164,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::FloatValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                         } 
@@ -2065,7 +2178,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -2073,7 +2186,7 @@ impl<'ctx> Compiler<'ctx> {
                     }
                     _ => {
                         //This should never happen because of parsing and error checking
-                        return Err("Improper operator for arthimatic operation".to_string());
+                        panic!("Improper operator for arthimatic operation");
                     }
                 }
             
@@ -2091,7 +2204,7 @@ impl<'ctx> Compiler<'ctx> {
                         op1Val = res.clone();
                     }
                     Err(msg) => {
-                        return Err(msg.clone());
+                        panic!("{}", msg.clone());
                     }
                 }
                 match op2Res{
@@ -2099,7 +2212,7 @@ impl<'ctx> Compiler<'ctx> {
                         op2Val = res.clone();
                     }
                     Err(msg) => {
-                        return Err(msg.clone());
+                        panic!("{}", msg.clone());
                     }
                 }
     
@@ -2125,17 +2238,17 @@ impl<'ctx> Compiler<'ctx> {
                                 BasicValueEnum::FloatValue(val) => op1Float = val,
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op1Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -2146,17 +2259,17 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op2Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Does the float equality check
@@ -2166,7 +2279,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                         } 
@@ -2180,7 +2293,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -2196,17 +2309,17 @@ impl<'ctx> Compiler<'ctx> {
                                 BasicValueEnum::FloatValue(val) => op1Float = val,
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op1Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for greater".to_string()),
+                                _ => panic!("Unsupported type for greater"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -2217,17 +2330,17 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op2Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Does the float equality check
@@ -2237,7 +2350,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                         } 
@@ -2251,7 +2364,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -2267,17 +2380,17 @@ impl<'ctx> Compiler<'ctx> {
                                 BasicValueEnum::FloatValue(val) => op1Float = val,
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op1Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -2288,17 +2401,17 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op2Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Does the float equality check
@@ -2308,7 +2421,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                         } 
@@ -2322,7 +2435,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -2338,17 +2451,17 @@ impl<'ctx> Compiler<'ctx> {
                                 BasicValueEnum::FloatValue(val) => op1Float = val,
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op1Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -2359,17 +2472,17 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op2Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Does the float equality check
@@ -2379,7 +2492,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                         } 
@@ -2393,7 +2506,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -2409,17 +2522,17 @@ impl<'ctx> Compiler<'ctx> {
                                 BasicValueEnum::FloatValue(val) => op1Float = val,
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op1Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -2430,17 +2543,17 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op2Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Does the float equality check
@@ -2450,7 +2563,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                         } 
@@ -2464,7 +2577,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -2480,17 +2593,17 @@ impl<'ctx> Compiler<'ctx> {
                                 BasicValueEnum::FloatValue(val) => op1Float = val,
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op1Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for not equal".to_string()),
+                                _ => panic!("Unsupported type for not equal"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -2501,17 +2614,17 @@ impl<'ctx> Compiler<'ctx> {
                                 }
                                 BasicValueEnum::IntValue(val) => {
                                     // Convert integer to float if necessary
-                                    let resConv = builder.build_signed_int_to_float(val, self.context.f64_type(), "intToFloat");
+                                    let resConv = builder.build_signed_int_to_float(val, self.context.f32_type(), "intToFloat");
                                     match resConv{
                                         Ok(val) => {
                                             op2Float = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Does the float equality check
@@ -2521,7 +2634,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                         } 
@@ -2535,7 +2648,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -2544,7 +2657,7 @@ impl<'ctx> Compiler<'ctx> {
                     
                     _ => {
                         //This should never happen because of parsing and error checking
-                        return Err("Improper operator for logical operation".to_string());
+                        panic!("Improper operator for logical operation");
                     }
                 }
             
@@ -2563,7 +2676,7 @@ impl<'ctx> Compiler<'ctx> {
                         op1Val = res;
                     }
                     Err(msg) => {
-                        return Err(msg.clone());
+                        panic!("{}", msg.clone());
                     }
                 }
                 match op2Res{
@@ -2571,7 +2684,7 @@ impl<'ctx> Compiler<'ctx> {
                         op2Val = res;
                     }
                     Err(msg) => {
-                        return Err(msg.clone());
+                        panic!("{}", msg.clone());
                     }
                 }
     
@@ -2603,11 +2716,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op1Int = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -2622,11 +2735,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op2Int = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             let retOp = builder.build_and(op1Int, op2Int, "intAnd");
@@ -2635,7 +2748,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
     
@@ -2650,7 +2763,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -2673,11 +2786,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op1Int = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             //Checks if op2 is float, casts it to float if not
@@ -2692,11 +2805,11 @@ impl<'ctx> Compiler<'ctx> {
                                             op2Int = val;
                                         }
                                         Err(errMsg) => {
-                                            return Err(format!("{}", errMsg));
+                                            panic!("{}", format!("{}", errMsg));
                                         }
                                     }
                                 },
-                                _ => return Err("Unsupported type for addition".to_string()),
+                                _ => panic!("Unsupported type for addition"),
                             };
     
                             let retOp = builder.build_or(op1Int, op2Int, "intOr");
@@ -2705,7 +2818,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
     
@@ -2720,7 +2833,7 @@ impl<'ctx> Compiler<'ctx> {
                                     return Ok(BasicValueEnum::IntValue(result.clone()));
                                 }
                                 Err(errMsg) => {
-                                    return Err(format!("{}", errMsg));
+                                    panic!("{}", format!("{}", errMsg));
                                 }
                             }
                             
@@ -2730,13 +2843,15 @@ impl<'ctx> Compiler<'ctx> {
                     
                     _ => {
                         //This should never happen because of parsing and error checking
-                        return Err("Improper operator for logical operation".to_string());
+                        panic!("Improper operator for logical operation");
                     }
                 }
                 
             }
         
             Expr::ProcRef(procName, params) => {
+                // self.scope += 1;
+                
                 //Get the function
                 let mut function: FunctionValue;
                 let functionCheck = self.module.get_function(&procName.clone());
@@ -2746,7 +2861,7 @@ impl<'ctx> Compiler<'ctx> {
                     }
                     None => {
                         let errMsg = format!("Function: {} not found", procName.clone());
-                        return Err(errMsg);
+                        panic!("{}", errMsg);
                     }
                 }
 
@@ -2761,7 +2876,7 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Err(err) => {
                                 let errMsg = format!("Error parsing function call param: {}", err.clone());
-                                return Err(errMsg.clone());
+                                panic!("{}", errMsg.clone());
                             }
                         }
                     }
@@ -2784,7 +2899,7 @@ impl<'ctx> Compiler<'ctx> {
                     }
                     Err(err) => {
                         let errMsg = format!("Error calling procedure");
-                        return Err(errMsg);
+                        panic!("{}", errMsg);
                     }
                 }
 
@@ -2795,257 +2910,66 @@ impl<'ctx> Compiler<'ctx> {
     
     
     }
-    
-   
-    fn declarePutInt(&mut self) {
-        // Define the function
-        let proc_name = "putinteger";
-        // Create the local variable hash table
-        let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
 
-        // Create the local builder
-        let procBuilder = self.context.create_builder();
-
-        // Create a vec for the param types
-        let paramTypes: Vec<BasicTypeEnum> = vec![self.context.i32_type().into()];
-
-        // Define the return type (boolean)
-        let boolType = self.context.bool_type();
-        let returnType = boolType;
-
-        // Create function type
-        // let param_types_slice: Vec<BasicTypeEnum> = param_types.iter().map(|&ty| ty.into()).collect();
-        let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
-        let paramTypesSlice = &paramTypesSlice[..];
-
-
-        let funcType = returnType.fn_type(&paramTypesSlice, false);
-        let procFunVal = self.module.add_function(proc_name, funcType.clone(), None);
-
-        // Create entry block and position the builder
-        let entry = self.context.append_basic_block(procFunVal, "entry");
-        procBuilder.position_at_end(entry);
-
-        // Prepare for the printf call
-        // let printf = self.module.get_function("printf").unwrap();
-        // let formatStr = CString::new("%d\n").unwrap(); // Format string for integer
-        // let formatStr = self.context.const_string(formatStr.as_bytes(), false);
-        // let formatPtrCheck = procBuilder.build_alloca(formatStr.get_type(), "format");
-        // let formatPtr:PointerValue;
-        // match formatPtrCheck{
-        //     Ok(val) => {
-        //         formatPtr = val.clone();
-        //     }
-        //     Err(err) => {
-        //         println!("error in allocating string space");
-        //         return;
-        //     }
-        // }
-        // let _ = procBuilder.build_store(formatPtr, formatStr);
-
-        // Get the parameter (integer value) passed to the function
-        let int_param = procFunVal.get_nth_param(0).unwrap().into_int_value();
-
-        // Build the printf call
-        println!("{}", int_param);
-
-        // Return a boolean true (indicating success)
-        let true_val = self.context.bool_type().const_int(1, false);
-        let _ = procBuilder.build_return(Some(&true_val));
+    fn definePutInt(&mut self) {
+        let intType = self.context.i32_type();
+        let retType = self.context.bool_type();
+        let paramTypes = vec![BasicMetadataTypeEnum::from(intType)];
+        let parmVals = paramTypes.as_slice();
+        let printFnType = retType.fn_type(parmVals, false);
+        let putInt = self.module.add_function("putinteger", printFnType, None);        
     }
-    // fn declarePutBool(&mut self) {
-    //     // Define the function
-    //     let proc_name = "putinteger";
-    //     // Create the local variable hash table
-    //     let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
-
-    //     // Create the local builder
-    //     let procBuilder = self.context.create_builder();
-
-    //     // Create a vec for the param types
-    //     let paramTypes: Vec<BasicTypeEnum> = vec![self.context.i32_type().into()];
-
-    //     // Define the return type (boolean)
-    //     let boolType = self.context.bool_type();
-    //     let returnType = boolType;
-
-    //     // Create function type
-    //     // let param_types_slice: Vec<BasicTypeEnum> = param_types.iter().map(|&ty| ty.into()).collect();
-    //     let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
-    //     let paramTypesSlice = &paramTypesSlice[..];
-
-
-    //     let funcType = returnType.fn_type(&paramTypesSlice, false);
-    //     let procFunVal = self.module.add_function(proc_name, funcType.clone(), None);
-
-    //     // Create entry block and position the builder
-    //     let entry = self.context.append_basic_block(procFunVal, "entry");
-    //     procBuilder.position_at_end(entry);
-
-    //     // Prepare for the printf call
-    //     let printf = self.module.get_function("printf").unwrap();
-    //     let formatStr = CString::new("%d\n").unwrap(); // Format string for integer
-    //     let formatStr = self.context.const_string(formatStr.as_bytes(), false);
-    //     let formatPtrCheck = procBuilder.build_alloca(formatStr.get_type(), "format");
-    //     let formatPtr:PointerValue;
-    //     match formatPtrCheck{
-    //         Ok(val) => {
-    //             formatPtr = val.clone();
-    //         }
-    //         Err(err) => {
-    //             println!("error in allocating string space");
-    //             return;
-    //         }
-    //     }
-        
-    //     let _ = procBuilder.build_store(formatPtr, formatStr);
-
-    //     // Get the parameter (integer value) passed to the function
-    //     let int_param = procFunVal.get_nth_param(0).unwrap().into_int_value();
-
-    //     // Build the printf call
-    //     let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[formatPtr.into()];
-    //     let _ = procBuilder.build_call(printf, &args, "printf_call");
-
-    //     // Return a boolean true (indicating success)
-    //     let true_val = self.context.bool_type().const_int(1, false);
-    //     let _ = procBuilder.build_return(Some(&true_val));
-    // }
-    // fn declarePutFloat(&mut self) {
-    //     // Define the function
-    //     let proc_name = "putFloat";
-    //     // Create the local variable hash table
-    //     let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
-
-    //     // Create the local builder
-    //     let procBuilder = self.context.create_builder();
-
-    //     // Create a vec for the param types
-    //     let paramTypes: Vec<BasicTypeEnum> = vec![self.context.i32_type().into()];
-
-    //     // Define the return type (boolean)
-    //     let boolType = self.context.bool_type();
-    //     let returnType = boolType;
-
-    //     // Create function type
-    //     // let param_types_slice: Vec<BasicTypeEnum> = param_types.iter().map(|&ty| ty.into()).collect();
-    //     let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
-    //     let paramTypesSlice = &paramTypesSlice[..];
+    fn definePutBool(&mut self) {
+        let boolType = self.context.bool_type();
+        let retType = self.context.bool_type();
+        let paramTypes = vec![BasicMetadataTypeEnum::from(boolType)];
+        let parmVals = paramTypes.as_slice();
+        let printFnType = retType.fn_type(parmVals, false);
+        let putInt = self.module.add_function("putbool", printFnType, None);        
+    }
+    fn definePutFloat(&mut self) {
+        let floatType = self.context.f32_type();
+        let retType = self.context.bool_type();
+        let paramTypes = vec![BasicMetadataTypeEnum::from(floatType)];
+        let parmVals = paramTypes.as_slice();
+        let printFnType = retType.fn_type(parmVals, false);
+        let putInt = self.module.add_function("putfloat", printFnType, None);        
+    }
+    fn definePutStr(&mut self) {
+        let i8_type = self.context.i8_type();
+        let array_type = i8_type.array_type(65); // Assuming the array size is 65
+        let string_type = array_type.ptr_type(AddressSpace::default());
+        let retType = self.context.bool_type();
+        let paramTypes = vec![BasicMetadataTypeEnum::from(string_type)];
+        let parmVals = paramTypes.as_slice();
+        let printFnType = retType.fn_type(parmVals, false);
+        let putInt = self.module.add_function("putfloat", printFnType, None);
+    }
 
 
-    //     let funcType = returnType.fn_type(&paramTypesSlice, false);
-    //     let procFunVal = self.module.add_function(proc_name, funcType.clone(), None);
-
-    //     // Create entry block and position the builder
-    //     let entry = self.context.append_basic_block(procFunVal, "entry");
-    //     procBuilder.position_at_end(entry);
-
-    //     // Prepare for the printf call
-    //     let printf = self.module.get_function("printf").unwrap();
-    //     let formatStr = CString::new("%d\n").unwrap(); // Format string for integer
-    //     let formatStr = self.context.const_string(formatStr.as_bytes(), false);
-    //     let formatPtrCheck = procBuilder.build_alloca(formatStr.get_type(), "format");
-    //     let formatPtr:PointerValue;
-    //     match formatPtrCheck{
-    //         Ok(val) => {
-    //             formatPtr = val.clone();
-    //         }
-    //         Err(err) => {
-    //             println!("error in allocating string space");
-    //             return;
-    //         }
-    //     }
-        
-    //     let _ = procBuilder.build_store(formatPtr, formatStr);
-
-    //     // Get the parameter (integer value) passed to the function
-    //     let int_param = procFunVal.get_nth_param(0).unwrap().into_int_value();
-
-    //     // Build the printf call
-    //     let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[formatPtr.into()];
-    //     let _ = procBuilder.build_call(printf, &args, "printf_call");
-
-    //     // Return a boolean true (indicating success)
-    //     let true_val = self.context.bool_type().const_int(1, false);
-    //     let _ = procBuilder.build_return(Some(&true_val));
-    // }
-    // fn declarePutString(&mut self) {
-    //     // Define the function
-    //     let proc_name = "putstring";
-    //     // Create the local variable hash table
-    //     let mut procLocTable: HashMap<String, PointerValue> = HashMap::new();
-
-    //     // Create the local builder
-    //     let procBuilder = self.context.create_builder();
-
-    //     // Create a vec for the param types
-    //     let paramTypes: Vec<BasicTypeEnum> = vec![self.context.i32_type().into()];
-
-    //     // Define the return type (boolean)
-    //     let boolType = self.context.bool_type();
-    //     let returnType = boolType;
-
-    //     // Create function type
-    //     // let param_types_slice: Vec<BasicTypeEnum> = param_types.iter().map(|&ty| ty.into()).collect();
-    //     let paramTypesSlice: Vec<BasicMetadataTypeEnum> = paramTypes.iter().map(|&ty| ty.into()).collect();
-    //     let paramTypesSlice = &paramTypesSlice[..];
+    fn defineGetInt(&mut self) {
+        let intType = self.context.i32_type();
+        // let retType = self.context.bool_type();
+        let paramTypes = vec![];
+        let parmVals = paramTypes.as_slice();
+        let getIntType = intType.fn_type(parmVals, false);
+        let putInt = self.module.add_function("getinteger", getIntType, None);
+    }
 
 
-    //     let funcType = returnType.fn_type(&paramTypesSlice, false);
-    //     let procFunVal = self.module.add_function(proc_name, funcType.clone(), None);
+    fn defineGetFloat(&mut self) {
+        let intType = self.context.f32_type();
+        // let retType = self.context.bool_type();
+        let paramTypes = vec![];
+        let parmVals = paramTypes.as_slice();
+        let getIntType = intType.fn_type(parmVals, false);
+        let putInt = self.module.add_function("getfloat", getIntType, None);
+    }
 
-    //     // Create entry block and position the builder
-    //     let entry = self.context.append_basic_block(procFunVal, "entry");
-    //     procBuilder.position_at_end(entry);
-
-    //     // Prepare for the printf call
-    //     let printf = self.module.get_function("printf").unwrap();
-    //     let formatStr = CString::new("%d\n").unwrap(); // Format string for integer
-    //     let formatStr = self.context.const_string(formatStr.as_bytes(), false);
-    //     let formatPtrCheck = procBuilder.build_alloca(formatStr.get_type(), "format");
-    //     let formatPtr:PointerValue;
-    //     match formatPtrCheck{
-    //         Ok(val) => {
-    //             formatPtr = val.clone();
-    //         }
-    //         Err(err) => {
-    //             println!("error in allocating string space");
-    //             return;
-    //         }
-    //     }
-        
-    //     let _ = procBuilder.build_store(formatPtr, formatStr);
-
-    //     // Get the parameter (integer value) passed to the function
-    //     let int_param = procFunVal.get_nth_param(0).unwrap().into_int_value();
-
-    //     // Build the printf call
-    //     let args: &[inkwell::values::BasicMetadataValueEnum<'_>] = &[formatPtr.into()];
-    //     let _ = procBuilder.build_call(printf, &args, "printf_call");
-
-    //     // Return a boolean true (indicating success)
-    //     let true_val = self.context.bool_type().const_int(1, false);
-    //     let _ = procBuilder.build_return(Some(&true_val));
-    // }
-   
-    
-    
-
-    // fn addScanf(&mut self) {
-    //     let i32Type = self.context.i32_type();
-    //     let stringType = self.context.i8_type();
-    //     let strPtrType = BasicMetadataTypeEnum::IntType(stringType);
-    //     let scanfType = i32Type.fn_type(&[strPtrType], true);
-    //     self.module.add_function("scanf", scanfType, None);
-    // }
-    // fn addPrintf(&mut self) {
-    //     let i32Type = self.context.i32_type();
-    //     let stringType = self.context.i8_type();
-    //     let strPtrType = BasicMetadataTypeEnum::IntType(stringType);
-    //     let scanfType = i32Type.fn_type(&[strPtrType], true);
-    //     self.module.add_function("printf", scanfType, None);
-    // }
-    
-    
 }
 
+#[no_mangle]
+pub extern "C" fn putinteger(val: i32) -> bool {
+    println!("{}", val);
+    return true;
+}

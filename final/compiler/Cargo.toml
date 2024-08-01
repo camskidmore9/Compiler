@@ -1,3 +1,4 @@
+workspace = { members = ["funcLib"] }
 [package]
 name = "compiler"
 version = "0.1.0"
@@ -13,3 +14,9 @@ unicode-segmentation = "1.9.0"
 inkwell = { version = "0.4.0", features = ["llvm14-0"] }
 llvm-sys = "181.1.0"
 polly = "0.1.2"
+
+
+[lib]
+name = "funcLib"
+path = "funcLib/src/lib.rs"
+crate-type = ["staticlib"]

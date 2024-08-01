@@ -363,7 +363,12 @@ impl<'a> SyntaxChecker<'a> {
                             return true;
                         }
                         Expr::StringLiteral(val) => {
-                            return false;
+                            println!("STRINGLITERAL {}", val.clone());
+                            if val == "floatval"{
+                                return true;
+                            } else{
+                                return false;
+                            }
                         }
                         Expr::BoolLiteral(val) => {
                             return false;
@@ -3205,7 +3210,7 @@ impl SymbolTable{
                     VarType::Bool,
                     HashItemType::Procedure(
                         Box::new(Stmt::StringLiteral("NONE".to_string(), "0".to_string())),
-                        vec!["boolparam".to_string()],  // Replace this with your desired string
+                        vec!["boolparam".to_string()], 
                         SymbolTable::newBuiltIn(),
                     ),
                 ),
@@ -3218,7 +3223,7 @@ impl SymbolTable{
                     VarType::Bool,
                     HashItemType::Procedure(
                         Box::new(Stmt::StringLiteral("NONE".to_string(), "0".to_string())),
-                        vec!["intparam".to_string()],  // Replace this with your desired string
+                        vec!["intparam".to_string()], 
                         SymbolTable::newBuiltIn(),
                     ),
                 ),
@@ -3231,7 +3236,7 @@ impl SymbolTable{
                     VarType::Bool,
                     HashItemType::Procedure(
                         Box::new(Stmt::StringLiteral("NONE".to_string(), "0".to_string())),
-                        vec!["floatparam".to_string()],  // Replace this with your desired string
+                        vec!["floatparam".to_string()],  
                         SymbolTable::newBuiltIn(),
                     ),
                 ),
